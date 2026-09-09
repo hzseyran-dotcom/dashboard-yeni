@@ -1182,6 +1182,19 @@
     .m-name { color: var(--ink); font-size: 13px; font-weight: 900; }
     .m-value { font-family: var(--mono); font-size: 11px; color: var(--muted); font-weight: 800; }
     .m-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+    .m-credit-summary { display: flex; align-items: center; justify-content: flex-end; gap: 10px; min-width: 0; }
+    .m-credit-summary .m-value { color: var(--ink); white-space: nowrap; }
+    .m-product-count {
+      padding: 4px 7px;
+      border: 1px solid color-mix(in srgb, var(--blue) 24%, transparent);
+      border-radius: 999px;
+      color: var(--blue);
+      background: var(--blue-soft);
+      font-family: var(--mono);
+      font-size: 9px;
+      font-weight: 900;
+      white-space: nowrap;
+    }
     .m-target-pct {
       font-family: var(--mono);
       font-size: 10px;
@@ -2247,9 +2260,13 @@ function renderMyCarsMonthlyWorkspace(initial=false) {
     const targetPctNum = target ? ((value || 0) / target) * 100 : 0;
     const progressWidth = Math.min(Math.max(targetPctNum, 0), 100);
     return `<button class="month-chip ${monthlyState.month===m?"active":""} ${target && targetPctNum>=100?"target-ok":""}" onclick="selectMonth('${m}')">
-      <span class="m-head"><span class="m-name">${MONTHS.names[idx]}</span><span class="m-target-pct">${target ? targetPctNum.toFixed(1)+"%" : ""}</span></span>
-      <span class="m-value">${value==null ? "Məlumat yoxdur" : fmtAZN(value)}</span>
-      <span class="m-target-text">Məhsul sayı: ${fmtProductCount(metrics.productCount)}</span>
+      <span class="m-head">
+        <span class="m-name">${MONTHS.names[idx]}</span>
+        <span class="m-credit-summary">
+          <span class="m-value">${value==null ? "Məlumat yoxdur" : fmtAZN(value)}</span>
+          <span class="m-product-count">${fmtProductCount(metrics.productCount)}</span>
+        </span>
+      </span>
       ${target ? `<span class="month-progress-track"><span class="month-progress-bar" style="width:${progressWidth}%"></span></span><span class="m-target-text">Hədəf: ${fmtAZN(target)}</span>` : ""}
     </button>`;
   }).join("");
