@@ -2021,7 +2021,11 @@ function toNum(x) {
       ? s.replace(/\./g,"").replace(/,/g,".")
       : s.replace(/,/g,"");
   } else if (s.includes(",")) {
-    s = s.replace(/,/g,".");
+    const parts = s.split(",");
+    const thousandGroups = parts.length > 1 && parts.every((part, i) => (
+      i === 0 ? /^\d{1,3}$/.test(part) && part !== "0" : /^\d{3}$/.test(part)
+    ));
+    s = !hadPercent && thousandGroups ? parts.join("") : s.replace(/,/g,".");
   } else if (s.includes(".")) {
     const parts = s.split(".");
     const thousandGroups = parts.length > 1 && parts.every((part, i) => (
