@@ -2160,10 +2160,14 @@ function buildLine(data25, data26) {
   });
 }
 
-function buildMonthlyTable(salesMap, platMap, b2bMap, instMap, targetMap) {
+function buildMonthlyTable(salesMap, platMap, b2bMap, instMap, targetMap, productMap) {
   const headerCells = MONTHS.names.map(m=>`<th>${m}</th>`).join("");
   if (currentSourceKey === "mycars") {
-    const rowsHTML = `<tr class="row-total"><td>Verilən kredit</td>${MONTHS.nums.map(m=>{ const v=instMap.get(m); return `<td>${v==null?"–":fmtAZN(v)}</td>`; }).join("")}</tr>`;
+    const rowsHTML = `<tr class="row-total"><td>Verilən kredit</td>${MONTHS.nums.map(m=>{
+      const v = instMap.get(m);
+      const count = productMap?.get(m);
+      return `<td>${v==null?"–":fmtAZN(v)}<div class="kpi-sub">${fmtProductCount(count)}</div></td>`;
+    }).join("")}</tr>`;
     return `<table><thead><tr><th style="min-width:180px;">Göstərici</th>${headerCells}</tr></thead><tbody>${rowsHTML}</tbody></table>`;
   }
   const rowsHTML =
@@ -2241,6 +2245,7 @@ function renderMyCarsMonthlyWorkspace(initial=false) {
     return `<button class="month-chip ${monthlyState.month===m?"active":""} ${target && targetPctNum>=100?"target-ok":""}" onclick="selectMonth('${m}')">
       <span class="m-head"><span class="m-name">${MONTHS.names[idx]}</span><span class="m-target-pct">${target ? targetPctNum.toFixed(1)+"%" : ""}</span></span>
       <span class="m-value">${value==null ? "Məlumat yoxdur" : fmtAZN(value)}</span>
+      <span class="m-target-text">Məhsul sayı: ${fmtProductCount(metrics.productCount)}</span>
       ${target ? `<span class="month-progress-track"><span class="month-progress-bar" style="width:${progressWidth}%"></span></span><span class="m-target-text">Hədəf: ${fmtAZN(target)}</span>` : ""}
     </button>`;
   }).join("");
@@ -2259,7 +2264,7 @@ function renderMyCarsMonthlyWorkspace(initial=false) {
     </div>
     <div class="metric-grid">
       <div class="metric-tile primary installment-feature">
-        <div class="metric-label">Verilən kredit</div>
+        <div class="installment-topline"><div class="metric-label">Verilən kredit</div><div class="monthly-product-count"><span>Məhsul sayı</span><strong>${fmtProductCount(metrics.productCount)}</strong></div></div>
         <div class="metric-value">${metrics.installment==null ? "–" : fmtAZN(metrics.installment)}</div>
         <div class="metric-sub">Portfel sheet-i üzrə verilmə tarixinə görə aylıq kredit məbləği</div>
       </div>
@@ -3052,7 +3057,7 @@ function renderMonthlyApplicationRates(rows) {
   }).join("");
 }
 
-function fetchGoogleRange(sheet, range, headers = 0) {
+function fetchGoogleRange(sheet, range, headers = 0, sheetId = SOURCE_CONFIG.myshops.sheetId) {
   return new Promise((resolve, reject) => {
     const script = document.createElement("script");
     const googleRoot = window.google || (window.google = {});
@@ -3084,9 +3089,29 @@ function fetchGoogleRange(sheet, range, headers = 0) {
       cleanup();
       reject(new Error(`${sheet} diapazonu yüklənmədi`));
     };
-    script.src = `https://docs.google.com/spreadsheets/d/${SOURCE_CONFIG.myshops.sheetId}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(sheet)}&range=${encodeURIComponent(range)}&headers=${headers}&_=${Date.now()}`;
+    script.src = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(sheet)}&range=${encodeURIComponent(range)}&headers=${headers}&_=${Date.now()}`;
     document.head.appendChild(script);
   });
+}
+
+async function fetchMyCarsMonthlyProductCounts() {
+  const rows = await fetchGoogleRange("Portfel", "AY2:AY4999", 0, SOURCE_CONFIG.mycars.sheetId);
+  return rows.reduce((counts, cells) => {
+    const raw = String(cells[0]?.f || cells[0]?.v || "").trim();
+    let year, month;
+    const formatted = raw.match(/^(\d{1,2})[.\-/](\d{1,2})[.\-/](\d{4})$/);
+    const googleDate = raw.match(/^Date\((\d{4}),(\d{1,2}),\d{1,2}\)$/);
+    if (formatted) {
+      year = formatted[3];
+      month = formatted[2].padStart(2, "0");
+    } else if (googleDate) {
+      year = googleDate[1];
+      month = String(Number(googleDate[2]) + 1).padStart(2, "0");
+    } else return counts;
+    const key = `${year}-${month}`;
+    counts[key] = (counts[key] || 0) + 1;
+    return counts;
+  }, {});
 }
 
 async function fetchPortfolioRiskRange() {
@@ -3157,7 +3182,20 @@ async function loadData() {
           catch (error) { console.warn("Aylıq müraciət faizi:", error); }
           return { portfolioRiskRows, monthlyProductCount, monthlySheetProductCounts, applicationRateRows, monthlyApplicationRateRows };
         })()
-      : Promise.resolve({ portfolioRiskRows: [], monthlyProductCount: null, monthlySheetProductCounts: {}, applicationRateRows: [], monthlyApplicationRateRows: [] });
+      : (async () => {
+          let monthlySheetProductCounts = {};
+          try { monthlySheetProductCounts = await fetchMyCarsMonthlyProductCounts(); }
+          catch (error) { console.warn("MyCars aylıq məhsul sayları:", error); }
+          const now = new Date();
+          const currentKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+          return {
+            portfolioRiskRows: [],
+            monthlyProductCount: monthlySheetProductCounts[currentKey] ?? null,
+            monthlySheetProductCounts,
+            applicationRateRows: [],
+            monthlyApplicationRateRows: []
+          };
+        })();
     const [allData, supplemental] = await Promise.all([fetchAll(), supplementalPromise]);
     const { portfolioRiskRows, monthlyProductCount, monthlySheetProductCounts, applicationRateRows, monthlyApplicationRateRows } = supplemental;
     const { main, inst25, inst26, sales25, sales26, pdf, texno, sheet4, applicationRate } = allData;
@@ -3200,7 +3238,7 @@ async function loadData() {
         <div class="kpi-card positive"><div class="kpi-label">Aylıq yığım proqnozu</div><div class="kpi-value mono" title="${fmtAZN(yigim)}">${fmtAZN(yigim)}</div></div>
         <div class="kpi-card"><div class="kpi-label">Orta müddət</div><div class="kpi-value">${avgTerm} <span style="font-size:10px;color:var(--faint)">ay</span></div></div>
         <div class="kpi-card ${marjaDiff>0?'positive':''}"><div class="kpi-label">Marja</div><div class="kpi-value">${marja}</div>${trendBadge(marjaDiff)}</div>
-        <div class="kpi-card positive"><div class="kpi-label">Cari ay verilən kredit</div><div class="kpi-value mono" title="${fmtAZN(hisseli)}">${fmtAZN(hisseli)}</div></div>
+        <div class="kpi-card positive"><div class="kpi-label">Cari ay verilən kredit</div><div class="kpi-value mono" title="${fmtAZN(hisseli)}">${fmtAZN(hisseli)}</div><div class="kpi-sub">${fmtProductCount(monthlyProductCount)}</div></div>
         <div class="kpi-card"><div class="kpi-label">Aktiv müştəri sayı</div><div class="kpi-value mono">${fmtNum(activeCount)}</div></div>
       `;
     } else {
@@ -3278,8 +3316,8 @@ async function loadData() {
       "2026": { salesMap: mapS26, platMap: mapP26, b2bMap: mapB26, instMap: mapI26, targetMap: mapT26, productMap: mapProduct26 }
     };
     renderMonthlyWorkspace(true);
-    document.getElementById("monthlyTable2025").innerHTML = buildMonthlyTable(mapS25, mapP25, mapB25, mapI25, mapT25);
-    document.getElementById("monthlyTable2026").innerHTML = buildMonthlyTable(mapS26, mapP26, mapB26, mapI26, mapT26);
+    document.getElementById("monthlyTable2025").innerHTML = buildMonthlyTable(mapS25, mapP25, mapB25, mapI25, mapT25, mapProduct25);
+    document.getElementById("monthlyTable2026").innerHTML = buildMonthlyTable(mapS26, mapP26, mapB26, mapI26, mapT26, mapProduct26);
 
     const experts = [1,2,3,4].map(i=>({
       name:   d[`Expert${i}`] || (i === 4 ? "HumAI" : `Mütəxəssis ${i}`),
@@ -3319,6 +3357,7 @@ async function loadData() {
       document.getElementById("summaryText").innerHTML = `
         <div class="signal-grid">
           ${signalCard('Cari ay verilən kredit', fmtAZN(hisseli), '', hisseli > 0 ? 'accent-green' : 'accent-blue')}
+          ${signalCard('Cari ay məhsul sayı', fmtProductCount(monthlyProductCount), '', monthlyProductCount > 0 ? 'accent-green' : 'accent-blue')}
           ${signalCard('Aylıq yığım proqnozu', fmtAZN(yigim), '', yigim > 0 ? 'accent-green' : 'accent-blue')}
           ${signalCard('Aktiv müştəri', fmtNum(activeCount), '', 'accent-blue')}
           ${signalCard('PAR1-30', fmtPctText(par130Raw), '', `accent-${parStatus(par130Raw) === 'warning' ? 'amber' : parStatus(par130Raw) === 'danger' ? 'red' : 'green'}`)}
@@ -3326,8 +3365,6 @@ async function loadData() {
           ${signalCard('PAR30+ müştəri sayı', par30CustomerSayRaw ? fmtNum(toNum(par30CustomerSayRaw)) : '–', '', 'accent-blue')}
           ${signalCard('PAR30+ portfeli', fmtAZN(toNum(d.Par30Amount)), '', `accent-${parStatus(par30pct) === 'warning' ? 'amber' : parStatus(par30pct) === 'danger' ? 'red' : 'green'}`)}
           ${signalCard('Marja', marja, '', 'accent-blue')}
-          ${signalCard('Təkrar müştəri say nisbəti', repeatCustomerCountRate, '', repeatCustomerCountRate !== '–' ? 'accent-blue' : 'accent-amber')}
-          ${signalCard('Təkrar alış məbləği nisbəti', repeatCustomerAmountRate, '', repeatCustomerAmountRate !== '–' ? 'accent-blue' : 'accent-amber')}
         </div>`;
     } else {
       document.getElementById("summaryText").innerHTML = `
