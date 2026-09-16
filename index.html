@@ -655,6 +655,24 @@
       color: var(--faint);
     }
     #kpiGrid .kpi-sub + .kpi-sub { display: none; }
+    #kpiGrid .par130-clickable { cursor: pointer; border-color: color-mix(in srgb, var(--amber) 34%, var(--line)); }
+    #kpiGrid .par130-clickable .kpi-sub { display: block; color: var(--muted); }
+    .par130-detail-panel {
+      margin: -2px 0 12px;
+      padding: 12px 14px;
+      border: 1px solid color-mix(in srgb, var(--amber) 30%, var(--line));
+      border-radius: 14px;
+      background: color-mix(in srgb, var(--panel-2) 88%, transparent);
+      box-shadow: var(--shadow-soft);
+    }
+    .par130-detail-head { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:8px; }
+    .par130-detail-title { font-size:11px; font-weight:900; letter-spacing:.5px; }
+    .par130-detail-total { font-size:12px; font-weight:900; color:var(--amber); }
+    .par130-detail-list { display:grid; gap:6px; }
+    .par130-detail-row { display:flex; justify-content:space-between; gap:16px; padding:8px 10px; border:1px solid var(--line); border-radius:10px; background:color-mix(in srgb, var(--panel) 74%, transparent); }
+    .par130-detail-name { font-size:11px; font-weight:800; color:var(--ink); }
+    .par130-detail-amount { font-size:11px; font-weight:900; white-space:nowrap; }
+    .par130-detail-empty { font-size:11px; color:var(--muted); }
 
     .dashboard-grid {
       display: grid;
@@ -1182,19 +1200,6 @@
     .m-name { color: var(--ink); font-size: 13px; font-weight: 900; }
     .m-value { font-family: var(--mono); font-size: 11px; color: var(--muted); font-weight: 800; }
     .m-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
-    .m-credit-summary { display: flex; align-items: center; justify-content: flex-end; gap: 10px; min-width: 0; }
-    .m-credit-summary .m-value { color: var(--ink); white-space: nowrap; }
-    .m-product-count {
-      padding: 4px 7px;
-      border: 1px solid color-mix(in srgb, var(--blue) 24%, transparent);
-      border-radius: 999px;
-      color: var(--blue);
-      background: var(--blue-soft);
-      font-family: var(--mono);
-      font-size: 9px;
-      font-weight: 900;
-      white-space: nowrap;
-    }
     .m-target-pct {
       font-family: var(--mono);
       font-size: 10px;
@@ -1629,7 +1634,21 @@
       .summary-banner { padding: 12px; }
       .signal-card { min-height: 74px; }
     }
-  </style>
+  
+    .m-car-count { display:block; margin-top:6px; font:700 10px/1.3 "JetBrains Mono",monospace; color:var(--muted); }
+    .car-count-feature { cursor:pointer; text-align:left; width:100%; font:inherit; color:inherit; appearance:none; }
+    .car-count-feature:hover { transform:translateY(-1px); border-color:color-mix(in srgb, var(--blue) 38%, transparent); }
+    .car-count-head { display:flex; align-items:center; justify-content:space-between; gap:12px; }
+    .car-count-chevron { font:900 18px/1 "JetBrains Mono",monospace; color:var(--muted); transition:transform .2s ease; }
+    .car-count-feature[aria-expanded="true"] .car-count-chevron { transform:rotate(180deg); }
+    .mycars-model-breakdown { margin-top:18px; padding:16px 18px; border:1px solid var(--line); border-radius:18px; background:color-mix(in srgb,var(--panel) 82%,transparent); }
+    .mycars-model-breakdown[hidden] { display:none !important; }
+    .model-breakdown-title { margin-bottom:10px; font:800 11px/1.4 "JetBrains Mono",monospace; letter-spacing:.05em; text-transform:uppercase; color:var(--muted); }
+    .model-row { display:flex; align-items:center; justify-content:space-between; gap:18px; padding:9px 0; border-bottom:1px dashed var(--line); }
+    .model-row:last-child { border-bottom:0; }
+    .model-row-name { font-weight:750; }
+    .model-row-count { white-space:nowrap; font:800 12px/1 "JetBrains Mono",monospace; color:var(--blue); }
+</style>
 </head>
 
 <body>
@@ -1650,11 +1669,15 @@
     <div class="nav-stack">
       <div class="nav-title">Modullar</div>
       <button class="nav-btn active" data-panel-link="overview" onclick="setPanel('overview')"><span class="nav-code">OV</span><span>İcmal mərkəzi</span></button>
-      <button class="nav-btn" data-panel-link="monthly" onclick="setPanel('monthly')"><span class="nav-code">AY</span><span>Aylıq analiz</span></button>
+      <button class="nav-btn" data-panel-link="monthly" onclick="setPanel('monthly')"><span class="nav-code">AY</span><span>Aylıq kreditlər</span></button>
       <button class="nav-btn" data-panel-link="risk" onclick="setPanel('risk')"><span class="nav-code">RK</span><span>Risk hesabatı</span></button>
     </div>
 
     <div class="side-actions">
+      <div class="action-row">
+        <button class="btn" onclick="loadData()">Sync</button>
+        <button class="btn primary" onclick="exportPDF()">Export</button>
+      </div>
       <button id="themeToggle" class="btn ghost" onclick="toggleTheme()">Light rejim</button>
     </div>
   </aside>
@@ -1674,6 +1697,7 @@
     </header>
 
     <section class="kpi-grid" id="kpiGrid"></section>
+    <section class="par130-detail-panel" id="par130DetailPanel" hidden></section>
 
     <section class="tab-panel active" id="panel-overview">
       <div class="dashboard-grid">
@@ -1729,8 +1753,7 @@
     <section class="tab-shell">
       <div class="tabbar">
         <button class="tab-btn active" data-tab="overview" onclick="setPanel('overview')">İcmal</button>
-        <button class="tab-btn" data-tab="targets" onclick="setPanel('targets')">Performans Radarı</button>
-        <button class="tab-btn" data-tab="monthly" onclick="setPanel('monthly')">Aylıq analiz</button>
+        <button class="tab-btn" data-tab="monthly" onclick="setPanel('monthly')">Aylıq kreditlər</button>
         <button class="tab-btn" data-tab="risk" onclick="setPanel('risk')">Risk hesabatı</button>
       </div>
 
@@ -1976,6 +1999,77 @@ const PAR_COLORS = { danger: "var(--red)", warning: "var(--amber)", safe: "var(-
 
 let charts = {};
 let monthlyState = { year: "2026", month: "01", data: {} };
+let myCarsModelBreakdownOpen = false;
+const MYCARS_VEHICLE_ROWS = [{"Verilmə tarixi normal":"09.01.2025","Məhsul adı":"BMW I7 WBA33AG07PCLL87068","Hissəli ödəniş məbləği":55400.0},{"Verilmə tarixi normal":"09.01.2025","Məhsul adı":"LIXIANG L7 ULTRA (PLUG-İN-HİBRİD BENZİN) ( HLX33B124R1726882 )","Hissəli ödəniş məbləği":69600.0},{"Verilmə tarixi normal":"13.01.2025","Məhsul adı":"Zeekr 001 L6T79ZCE2RP126415","Hissəli ödəniş məbləği":52500.0},{"Verilmə tarixi normal":"14.01.2025","Məhsul adı":"LIXIANG L7 ULTRA (PLUG-İN-HİBRİD BENZİN) ( HLX33B121R1707044 )","Hissəli ödəniş məbləği":80500.0},{"Verilmə tarixi normal":"17.01.2025","Məhsul adı":"LIXIANG L7 ULTRA (PLUG-İN-HİBRİD BENZİN) ( HLX33B121R1727150 )","Hissəli ödəniş məbləği":70500.0},{"Verilmə tarixi normal":"30.01.2025","Məhsul adı":"LIXIANG L7 ULTRA (PLUG-İN-HİBRİD BENZİN) ( HLX33B127R1715004 )","Hissəli ödəniş məbləği":90672.0},{"Verilmə tarixi normal":"30.01.2025","Məhsul adı":"LIXIANG L7 ULTRA (PLUG-İN-HİBRİD BENZİN) ( HLX33B125R1715924 )","Hissəli ödəniş məbləği":79600.0},{"Verilmə tarixi normal":"10.02.2025","Məhsul adı":"LIXIANG L7 ULTRA (PLUG-İN-HİBRİD BENZİN) ( HLX33B120R1707097 )","Hissəli ödəniş məbləği":90300.0},{"Verilmə tarixi normal":"11.02.2025","Məhsul adı":"TOYOTA CAMRY (HİBRİD-BENZİN) ( LVGBECEK4RG036426 )","Hissəli ödəniş məbləği":59000.0},{"Verilmə tarixi normal":"11.02.2025","Məhsul adı":"ZEEKR 7X ( ELEKTRİK) L6T79NCE9RN090453","Hissəli ödəniş məbləği":57000.0},{"Verilmə tarixi normal":"11.02.2025","Məhsul adı":"TOYOTA CAMRY (HİBRİD-BENZİN) ( LVGBECEK8RG027891 )","Hissəli ödəniş məbləği":60000.0},{"Verilmə tarixi normal":"13.02.2025","Məhsul adı":"LIXIANG L7 ULTRA (PLUG-İN-HİBRİD BENZİN) ( HLX33B124R1713517 )","Hissəli ödəniş məbləği":92500.0},{"Verilmə tarixi normal":"14.02.2025","Məhsul adı":"LIXIANG L7 ULTRA (PLUG-İN-HİBRİD BENZİN) ( HLX33B120R1713403 )","Hissəli ödəniş məbləği":73500.0},{"Verilmə tarixi normal":"19.02.2025","Məhsul adı":"\"LİXİANG L9 ULTRA (PLUG-İN-HİBRİD BENZİN) HLX33B127S0402580","Hissəli ödəniş məbləği":102000.0},{"Verilmə tarixi normal":"05.03.2025","Məhsul adı":"\"LİXİANG L7 ULTRA (PLUG-İN-HİBRİD BENZİN) HLX33B129S0702511","Hissəli ödəniş məbləği":95000.0},{"Verilmə tarixi normal":"17.03.2025","Məhsul adı":"\"LİXİANG L9 PRO (PLUG-İN-HİBRİD BENZİN) HLX33B127S1403416","Hissəli ödəniş məbləği":100000.0},{"Verilmə tarixi normal":"18.03.2025","Məhsul adı":"LIXIANG L9 ULTRA (PLUG-İN-HİBRİD BENZİN) HLX33B124R0107480","Hissəli ödəniş məbləği":86500.0},{"Verilmə tarixi normal":"25.03.2025","Məhsul adı":"\"LİXİANG L7 ULTRA (PLUG-İN-HİBRİD BENZİN) HLX33B124S0702206","Hissəli ödəniş məbləği":71000.0},{"Verilmə tarixi normal":"27.03.2025","Məhsul adı":"TOYOTA CAMRY (HİBRİD-BENZİN) LVGBECEK8RG530062","Hissəli ödəniş məbləği":58500.0},{"Verilmə tarixi normal":"28.03.2025","Məhsul adı":"LİXİANG L6 PRO (PLUG-İN-HİBRİD BENZİN) HLX32B141S1017434","Hissəli ödəniş məbləği":73000.0},{"Verilmə tarixi normal":"31.03.2025","Məhsul adı":"TOYOTA CAMRY (HİBRİD-BENZİN) LVGBECEK0RG047245","Hissəli ödəniş məbləği":60000.0},{"Verilmə tarixi normal":"01.04.2025","Məhsul adı":"TOYOTA CAMRY (HİBRİD-BENZİN) LVGBECEK5RG046320","Hissəli ödəniş məbləği":58500.0},{"Verilmə tarixi normal":"07.04.2025","Məhsul adı":"LİXİANG L7 PRO (PLUG-İN-HİBRİD BENZİN) HLX33B120S1705842","Hissəli ödəniş məbləği":57672.0},{"Verilmə tarixi normal":"10.04.2025","Məhsul adı":"\"LİXİANG L6 PRO (PLUG-İN-HİBRİD BENZİN) HLX32B147S1018040","Hissəli ödəniş məbləği":63610.0},{"Verilmə tarixi normal":"10.04.2025","Məhsul adı":"LIXIANG L9 ULTRA (PLUG-İN-HİBRİD BENZİN) (HLX33B122R0097872)","Hissəli ödəniş məbləği":110500.0},{"Verilmə tarixi normal":"14.04.2025","Məhsul adı":"LİXİANG L7 PRO (PLUG-İN-HİBRİD BENZİN) HLX33B124S1707559","Hissəli ödəniş məbləği":66000.0},{"Verilmə tarixi normal":"16.04.2025","Məhsul adı":"LIXIANG L9 ULTRA (PLUG-İN-HİBRİD BENZİN) HLX33B125R0109027","Hissəli ödəniş məbləği":92500.0},{"Verilmə tarixi normal":"16.04.2025","Məhsul adı":"Zeekr 001 L6T79ZCE2RP139486","Hissəli ödəniş məbləği":59500.0},{"Verilmə tarixi normal":"17.04.2025","Məhsul adı":"BMW I7 WBY51EJ00PCM01876","Hissəli ödəniş məbləği":135900.0},{"Verilmə tarixi normal":"19.04.2025","Məhsul adı":"LİXİANG L6 PRO (PLUG-İN-HİBRİD BENZİN) HLX32B14XS1018629","Hissəli ödəniş məbləği":68000.0},{"Verilmə tarixi normal":"22.04.2025","Məhsul adı":"LİXİANG L9 ULTRA (PLUG-İN-HİBRİD BENZİN) HLX33B125S0407437","Hissəli ödəniş məbləği":83000.0},{"Verilmə tarixi normal":"23.04.2025","Məhsul adı":"Nissan Potrul JN8AY3NY1S9004932","Hissəli ödəniş məbləği":168500.0},{"Verilmə tarixi normal":"24.04.2025","Məhsul adı":"\"LİXİANG L6 PRO (PLUG-İN-HİBRİD BENZİN) HLX32B142S1017586","Hissəli ödəniş məbləği":66500.0},{"Verilmə tarixi normal":"28.04.2025","Məhsul adı":"BYD LEOPARD 8 (PLUG-İN-HİBRİD BENZİN) LC0FD1C42S5077614","Hissəli ödəniş məbləği":92400.0},{"Verilmə tarixi normal":"28.04.2025","Məhsul adı":"LİXİANG L9 MAX (PLUG-İN-HİBRİD MİNİK) HLX33B128P1185915","Hissəli ödəniş məbləği":88400.0},{"Verilmə tarixi normal":"29.04.2025","Məhsul adı":"TOYOTA CAMRY (HİBRİD-BENZİN) LVGBECEK6RG047394","Hissəli ödəniş məbləği":59000.0},{"Verilmə tarixi normal":"06.05.2025","Məhsul adı":"TOYOTA COROLLA (HİBRİD -BENZİN) LFMAAA0C2S0636596","Hissəli ödəniş məbləği":591300.0},{"Verilmə tarixi normal":"06.05.2025","Məhsul adı":"TOYOTA COROLLA (HİBRİD -BENZİN) LFMAAA0C6S0636634","Hissəli ödəniş məbləği":591300.0},{"Verilmə tarixi normal":"06.05.2025","Məhsul adı":"TOYOTA COROLLA (HİBRİD -BENZİN) LFMAAA0C6S0636410","Hissəli ödəniş məbləği":591300.0},{"Verilmə tarixi normal":"06.05.2025","Məhsul adı":"TOYOTA COROLLA (HİBRİD -BENZİN) LFMAAA0C1S0635956","Hissəli ödəniş məbləği":591300.0},{"Verilmə tarixi normal":"06.05.2025","Məhsul adı":"TOYOTA COROLLA (HİBRİD -BENZİN) LFMAAA0C2S0635898","Hissəli ödəniş məbləği":591300.0},{"Verilmə tarixi normal":"06.05.2025","Məhsul adı":"TOYOTA COROLLA (HİBRİD -BENZİN) LFMAAA0C3S0636011","Hissəli ödəniş məbləği":591300.0},{"Verilmə tarixi normal":"06.05.2025","Məhsul adı":"TOYOTA COROLLA (HİBRİD -BENZİN) LFMAAA0C6S0635967","Hissəli ödəniş məbləği":591300.0},{"Verilmə tarixi normal":"06.05.2025","Məhsul adı":"TOYOTA COROLLA (HİBRİD -BENZİN) LFMAAA0C4S0636292","Hissəli ödəniş məbləği":591300.0},{"Verilmə tarixi normal":"06.05.2025","Məhsul adı":"TOYOTA COROLLA (HİBRİD -BENZİN) LFMAAA0C8S0636229","Hissəli ödəniş məbləği":591300.0},{"Verilmə tarixi normal":"06.05.2025","Məhsul adı":"TOYOTA COROLLA (HİBRİD -BENZİN) LFMAAA0C7S0636528","Hissəli ödəniş məbləği":591300.0},{"Verilmə tarixi normal":"06.05.2025","Məhsul adı":"TOYOTA COROLLA (HİBRİD -BENZİN) LFMAAA0C8S0636523","Hissəli ödəniş məbləği":591300.0},{"Verilmə tarixi normal":"06.05.2025","Məhsul adı":"TOYOTA COROLLA (HİBRİD -BENZİN) LFMAAA0C3S0636591","Hissəli ödəniş məbləği":591300.0},{"Verilmə tarixi normal":"06.05.2025","Məhsul adı":"TOYOTA COROLLA (HİBRİD -BENZİN) LFMAAA0C3S0635750","Hissəli ödəniş məbləği":591300.0},{"Verilmə tarixi normal":"06.05.2025","Məhsul adı":"TOYOTA COROLLA (HİBRİD -BENZİN) LFMAAA0C2S0635951","Hissəli ödəniş məbləği":591300.0},{"Verilmə tarixi normal":"06.05.2025","Məhsul adı":"TOYOTA COROLLA (HİBRİD -BENZİN) LFMAAA0C7S0636075","Hissəli ödəniş məbləği":591300.0},{"Verilmə tarixi normal":"08.05.2025","Məhsul adı":"LIXIANG L9 ULTRA (PLUG-İN-HİBRİD BENZİN) HLX33B12XR0107662","Hissəli ödəniş məbləği":86000.0},{"Verilmə tarixi normal":"08.05.2025","Məhsul adı":"TOYOTA CAMRY (HİBRİD -BENZİN) LVGBECEK5SG564725","Hissəli ödəniş məbləği":55500.0},{"Verilmə tarixi normal":"12.05.2025","Məhsul adı":"LIXIANG L7 ULTRA (PLUG-İN-HİBRİD BENZİN) ( HLX33B127R1706948 )","Hissəli ödəniş məbləği":81600.0},{"Verilmə tarixi normal":"19.05.2025","Məhsul adı":"LİXİANG L7 ULTRA (PLUG-İN-HİBRİD BENZİN) HLX33B120S0703739","Hissəli ödəniş məbləği":73500.0},{"Verilmə tarixi normal":"19.05.2025","Məhsul adı":"LİXİANG L7 PRO (PLUG-İN-HİBRİD BENZİN) HLX33B125S1705531","Hissəli ödəniş məbləği":59500.0},{"Verilmə tarixi normal":"30.05.2025","Məhsul adı":"TOYOTA COROLLA (HİBRİD -BENZİN) LFMAAA0C1S0637903","Hissəli ödəniş məbləği":315360.0},{"Verilmə tarixi normal":"30.05.2025","Məhsul adı":"TOYOTA COROLLA (HİBRİD -BENZİN) LFMAAA0C6S0638058","Hissəli ödəniş məbləği":315360.0},{"Verilmə tarixi normal":"30.05.2025","Məhsul adı":"TOYOTA COROLLA (HİBRİD -BENZİN) LFMAAA0C2S0637912","Hissəli ödəniş məbləği":315360.0},{"Verilmə tarixi normal":"30.05.2025","Məhsul adı":"TOYOTA COROLLA (HİBRİD -BENZİN) LFMAAA0C3S0637921","Hissəli ödəniş məbləği":315360.0},{"Verilmə tarixi normal":"30.05.2025","Məhsul adı":"TOYOTA COROLLA (HİBRİD -BENZİN) LFMAAA0C1S0638999","Hissəli ödəniş məbləği":315360.0},{"Verilmə tarixi normal":"30.05.2025","Məhsul adı":"TOYOTA COROLLA (HİBRİD -BENZİN) LFMAAA0C4S0638009","Hissəli ödəniş məbləği":315360.0},{"Verilmə tarixi normal":"30.05.2025","Məhsul adı":"TOYOTA COROLLA (HİBRİD -BENZİN) LFMAAA0C6S0638173","Hissəli ödəniş məbləği":315360.0},{"Verilmə tarixi normal":"30.05.2025","Məhsul adı":"TOYOTA COROLLA (HİBRİD -BENZİN) LFMAAA0C2S0638753","Hissəli ödəniş məbləği":315360.0},{"Verilmə tarixi normal":"02.06.2025","Məhsul adı":"BYD LEOPARD 5 (PLUG-İN-HİBRİD BENZİN) LC0FD1C4XS5075173","Hissəli ödəniş məbləği":54400.0},{"Verilmə tarixi normal":"12.06.2025","Məhsul adı":"LİXİANG L7 ULTRA (PLUG-İN-HİBRİD BENZİN) HLX33B123S0703962","Hissəli ödəniş məbləği":103240.0},{"Verilmə tarixi normal":"13.06.2025","Məhsul adı":"TOYOTA CAMRY (HİBRİD -BENZİN) LVGBECEK8SG568431","Hissəli ödəniş məbləği":49200.0},{"Verilmə tarixi normal":"17.06.2025","Məhsul adı":"TOYOTA CAMRY (HİBRİD -BENZİN) LVGBECEK2SG570854","Hissəli ödəniş məbləği":48564.0},{"Verilmə tarixi normal":"25.06.2025","Məhsul adı":"JETOUR T2 (PLUG-İN-HİBRİD BENZİN) LNNBDDEN7SDD95744","Hissəli ödəniş məbləği":56500.0},{"Verilmə tarixi normal":"26.06.2025","Məhsul adı":"TOYOTA CAMRY (HİBRİD -BENZİN) LVGBECEK1SG568464","Hissəli ödəniş məbləği":51000.0},{"Verilmə tarixi normal":"30.06.2025","Məhsul adı":"LİXİANG L7 ULTRA (PLUG-İN-HİBRİD BENZİN) HLX33B121S1705767","Hissəli ödəniş məbləği":99400.0},{"Verilmə tarixi normal":"02.07.2025","Məhsul adı":"LİXİANG L7 ULTRA (PLUG-İN-HİBRİD BENZİN) HLX33B127S0701664","Hissəli ödəniş məbləği":43230.0},{"Verilmə tarixi normal":"03.07.2025","Məhsul adı":"LİXİANG L6 PRO (PLUG-İN-HİBRİD BENZİN) HLX32B14XS1076269","Hissəli ödəniş məbləği":56472.0},{"Verilmə tarixi normal":"05.07.2025","Məhsul adı":"CHANGAN QİYUAN Q07 (PLUG-İN-HİBRİD BENZİN) LS6BME2P8SA704036","Hissəli ödəniş məbləği":46296.0},{"Verilmə tarixi normal":"07.07.2025","Məhsul adı":"LİXİANG L6 PRO (PLUG-İN-HİBRİD BENZİN) HLX32B142S1067808","Hissəli ödəniş məbləği":71820.0},{"Verilmə tarixi normal":"07.07.2025","Məhsul adı":"LİXİANG L7 ULTRA (PLUG-İN-HİBRİD BENZİN) HLX33B129S1736815","Hissəli ödəniş məbləği":100550.0},{"Verilmə tarixi normal":"08.07.2025","Məhsul adı":"CHANGAN QİYUAN Q07 (PLUG-İN-HİBRİD BENZİN) LS6BME2P2SA719003","Hissəli ödəniş məbləği":43100.0},{"Verilmə tarixi normal":"08.07.2025","Məhsul adı":"CHANGAN QİYUAN Q07 (PLUG-İN-HİBRİD BENZİN) LS6BME2P9SA719161","Hissəli ödəniş məbləği":38760.0},{"Verilmə tarixi normal":"09.07.2025","Məhsul adı":"CHANGAN QİYUAN Q07 (PLUG-İN-HİBRİD BENZİN) LS6BME2P8SA703159","Hissəli ödəniş məbləği":39780.0},{"Verilmə tarixi normal":"09.07.2025","Məhsul adı":"LİXİANG L7 ULTRA (PLUG-İN-HİBRİD BENZİN) HLX33B121S1738333","Hissəli ödəniş məbləği":95616.0},{"Verilmə tarixi normal":"11.07.2025","Məhsul adı":"L9 ULTRA (PLUG-İN-HİBRİD BENZİN) HLX33B12XS1442355","Hissəli ödəniş məbləği":62904.0},{"Verilmə tarixi normal":"15.07.2025","Məhsul adı":"TOYOTA COROLLA (HIBRID) 2025 LFMAAA0C3S0635862","Hissəli ödəniş məbləği":118260.0},{"Verilmə tarixi normal":"15.07.2025","Məhsul adı":"TOYOTA COROLLA ( HIBRID) 2025 LFMAAA0C2S0636016","Hissəli ödəniş məbləği":118260.0},{"Verilmə tarixi normal":"15.07.2025","Məhsul adı":"TOYOTA COROLLA ( HIBRID) 2025 LFMAAA0C0S0635835","Hissəli ödəniş məbləği":118260.0},{"Verilmə tarixi normal":"21.07.2025","Məhsul adı":"BYD LEOPARD 8 (PLUG-İN-HİBRİD BENZİN) LC0FD1C43S5200787","Hissəli ödəniş məbləği":76680.0},{"Verilmə tarixi normal":"21.07.2025","Məhsul adı":"CHANGAN QİYUAN Q07 (PLUG-İN-HİBRİD BENZİN) LS6BME2PXSA719038","Hissəli ödəniş məbləği":32280.0},{"Verilmə tarixi normal":"22.07.2025","Məhsul adı":"CHANGAN QİYUAN Q07 (PLUG-İN-HİBRİD BENZİN) LS6BME2P8SA719197","Hissəli ödəniş məbləği":45900.0},{"Verilmə tarixi normal":"23.07.2025","Məhsul adı":"BYD DENZA N9 (PLUG-İN-HİBRİD BENZİN) LC0DD4C43S6147625","Hissəli ödəniş məbləği":102600.0},{"Verilmə tarixi normal":"23.07.2025","Məhsul adı":"TOYOTA COROLLA (HİBRİD-BENZİN) LFMAAA0C8S0652270","Hissəli ödəniş məbləği":157680.0},{"Verilmə tarixi normal":"23.07.2025","Məhsul adı":"TOYOTA COROLLA (HİBRİD-BENZİN) LFMAAA0C9S0652195","Hissəli ödəniş məbləği":157680.0},{"Verilmə tarixi normal":"23.07.2025","Məhsul adı":"TOYOTA COROLLA (HİBRİD-BENZİN) LFMAAA0C2S0652748","Hissəli ödəniş məbləği":157680.0},{"Verilmə tarixi normal":"23.07.2025","Məhsul adı":"TOYOTA COROLLA (HİBRİD-BENZİN) LFMAAA0C8S0651491","Hissəli ödəniş məbləği":157680.0},{"Verilmə tarixi normal":"24.07.2025","Məhsul adı":"TOYOTA CAMRY (HİBRİD -BENZİN) LVGBECEK3SG568269","Hissəli ödəniş məbləği":57120.0},{"Verilmə tarixi normal":"25.07.2025","Məhsul adı":"ZEEKR 7X (ELEKTRİK) L6T79NCE8SN010923","Hissəli ödəniş məbləği":66300.0},{"Verilmə tarixi normal":"04.08.2025","Məhsul adı":"BYD DENZA N9 (PLUG-İN-HİBRİD BENZİN) LC0DD4C49S6148102","Hissəli ödəniş məbləği":132960.0},{"Verilmə tarixi normal":"04.08.2025","Məhsul adı":"LİXİANG L7 ULTRA (PLUG-İN-HİBRİD BENZİN) HLX33B122S1737384","Hissəli ödəniş məbləği":56100.0},{"Verilmə tarixi normal":"14.08.2025","Məhsul adı":"L9 ULTRA (PLUG-İN-HİBRİD BENZİN) HLX33B125S1444904","Hissəli ödəniş məbləği":41514.0},{"Verilmə tarixi normal":"23.08.2025","Məhsul adı":"TOYOTA CAMRY (HİBRİD -BENZİN) LVGBECEKXSG577972","Hissəli ödəniş məbləği":45900.0},{"Verilmə tarixi normal":"01.09.2025","Məhsul adı":"CHANGAN QİYUAN Q07 LS6BME2P7SA719174","Hissəli ödəniş məbləği":42584.0},{"Verilmə tarixi normal":"01.09.2025","Məhsul adı":"TOYOTA CAMRY (HİBRİD -BENZİN) LVGBECEK7SG582918","Hissəli ödəniş məbləği":60120.0},{"Verilmə tarixi normal":"08.09.2025","Məhsul adı":"CHANGAN QİYUAN Q07 LS6BME2P1SA719316","Hissəli ödəniş məbləği":41160.0},{"Verilmə tarixi normal":"08.09.2025","Məhsul adı":"CHANGAN QİYUAN Q07 LS6BME2P2SA719132","Hissəli ödəniş məbləği":43248.0},{"Verilmə tarixi normal":"12.09.2025","Məhsul adı":"LIXIANG L9 ULTRA (PLUG-İN-HİBRİD BENZİN) (HLX33B121R1063819 )","Hissəli ödəniş məbləği":93000.0},{"Verilmə tarixi normal":"14.09.2025","Məhsul adı":"CHANGAN DEEPAL S09 LS6CMG347SJ004366","Hissəli ödəniş məbləği":80584.0},{"Verilmə tarixi normal":"16.09.2025","Məhsul adı":"VOLKSWAGEN ID 6 CroZZ PRO LFVVB9E79N5166532","Hissəli ödəniş məbləği":33840.0},{"Verilmə tarixi normal":"26.09.2025","Məhsul adı":"\" LİXİANG L7 PRO (PLUG-İN-HİBRİD BENZİN) HLX33B125S1767494","Hissəli ödəniş məbləği":76248.0},{"Verilmə tarixi normal":"01.10.2025","Məhsul adı":"TOYOTA CAMRY (HİBRİD -BENZİN) LVGBECEK7SG577735","Hissəli ödəniş məbləği":60120.0},{"Verilmə tarixi normal":"08.10.2025","Məhsul adı":"TOYOTA COROLLA (HİBRİD-BENZİN) LFMAAA0C4S0659264","Hissəli ödəniş məbləği":275900.0},{"Verilmə tarixi normal":"08.10.2025","Məhsul adı":"TOYOTA COROLLA (HİBRİD-BENZİN) LFMAAA0CXS0659205","Hissəli ödəniş məbləği":275900.0},{"Verilmə tarixi normal":"08.10.2025","Məhsul adı":"TOYOTA COROLLA (HİBRİD-BENZİN) LFMAAA0C4S0659250","Hissəli ödəniş məbləği":275900.0},{"Verilmə tarixi normal":"08.10.2025","Məhsul adı":"TOYOTA COROLLA (HİBRİD-BENZİN) LFMAAA0C0S0659584","Hissəli ödəniş məbləği":275900.0},{"Verilmə tarixi normal":"08.10.2025","Məhsul adı":"TOYOTA COROLLA (HİBRİD-BENZİN) LFMAAA0C0S0659147","Hissəli ödəniş məbləği":275900.0},{"Verilmə tarixi normal":"08.10.2025","Məhsul adı":"TOYOTA COROLLA (HİBRİD-BENZİN) LFMAAA0C4S0658986","Hissəli ödəniş məbləği":275900.0},{"Verilmə tarixi normal":"08.10.2025","Məhsul adı":"TOYOTA COROLLA (HİBRİD-BENZİN) LFMAAA0C8S0669778","Hissəli ödəniş məbləği":275900.0},{"Verilmə tarixi normal":"15.10.2025","Məhsul adı":"LYNK CO 900 EM-P (PLUG-İN-HİBRİD BENZİN) L6T79END2ST227707","Hissəli ödəniş məbləği":81600.0},{"Verilmə tarixi normal":"16.10.2025","Məhsul adı":"CHANGAN DEEPAL S09 (PLUG-İN HİBRİD BENZİN) LS6CMG34XSJ005379","Hissəli ödəniş məbləği":37080.0},{"Verilmə tarixi normal":"22.10.2025","Məhsul adı":"BYD DENZA N9 (PLUG-İN-HİBRİD BENZİN) LC0DD4C48S6124924","Hissəli ödəniş məbləği":106092.0},{"Verilmə tarixi normal":"23.10.2025","Məhsul adı":"BYD DENZA N9 ( PLUG İN HİBRİD BENZİN ) LC0DD4C41S6153682","Hissəli ödəniş məbləği":102000.0},{"Verilmə tarixi normal":"24.10.2025","Məhsul adı":"LİXİANG L9 ULTRA (PLUG-İN-HİBRİD BENZİN) HLX33B120S0457338","Hissəli ödəniş məbləği":104724.0},{"Verilmə tarixi normal":"25.10.2025","Məhsul adı":"CHANGAN QIYUAN Q07 (PLUG-İN-HİBRİD BENZİN) LS6BME2P7SA719692","Hissəli ödəniş məbləği":45000.0},{"Verilmə tarixi normal":"30.10.2025","Məhsul adı":"\" BYD LEOPARD 8 (PLUG-İN-HİBRİD BENZİN) LC0FD1C43S5077735","Hissəli ödəniş məbləği":119000.0},{"Verilmə tarixi normal":"31.10.2025","Məhsul adı":"L9 ULTRA (PLUG-İN-HİBRİD BENZİN) HLX33B126S1444135","Hissəli ödəniş məbləği":117324.0},{"Verilmə tarixi normal":"31.10.2025","Məhsul adı":"LYNK CO 900 EM-P (PLUG-IN HİBRİD BENZİN) L6T79ENDXST227468","Hissəli ödəniş məbləği":74472.0},{"Verilmə tarixi normal":"01.11.2025","Məhsul adı":"Nissan Patrol JN8AY3NY3T9105228","Hissəli ödəniş məbləği":198900.0},{"Verilmə tarixi normal":"01.11.2025","Məhsul adı":"DENZA N9 (PLUG-İN-HİBRİD BENZİN) LC0DD4C40S6172532","Hissəli ödəniş məbləği":132624.0},{"Verilmə tarixi normal":"03.11.2025","Məhsul adı":"LIXIANG 9 ULTRA HLX33B123S1442570","Hissəli ödəniş məbləği":130944.0},{"Verilmə tarixi normal":"17.11.2025","Məhsul adı":"L9 ULTRA (PLUG-İN-HİBRİD BENZİN) HLX33B128S1441897","Hissəli ödəniş məbləği":130944.0},{"Verilmə tarixi normal":"20.11.2025","Məhsul adı":"LİXİANG L6 PRO HLX32B149S1083407","Hissəli ödəniş məbləği":33660.0},{"Verilmə tarixi normal":"21.11.2025","Məhsul adı":"CHANGAN QİYUAN Q07 (PLUG-İN-HİBRİD BENZİN) LS6BME2P2SA751918","Hissəli ödəniş məbləği":42912.0},{"Verilmə tarixi normal":"24.11.2025","Məhsul adı":"TOYOTA COROLLA (HİBRİD-BENZİN) LFMAAA0C8S0668971","Hissəli ödəniş məbləği":315200.0},{"Verilmə tarixi normal":"24.11.2025","Məhsul adı":"TOYOTA COROLLA (HİBRİD-BENZİN) LFMAAA0C2S0668948","Hissəli ödəniş məbləği":315200.0},{"Verilmə tarixi normal":"24.11.2025","Məhsul adı":"TOYOTA COROLLA (HİBRİD-BENZİN) LFMAAA0C7S0668959","Hissəli ödəniş məbləği":315200.0},{"Verilmə tarixi normal":"24.11.2025","Məhsul adı":"TOYOTA COROLLA (HİBRİD-BENZİN) LFMAAA0C3S0668926","Hissəli ödəniş məbləği":315200.0},{"Verilmə tarixi normal":"24.11.2025","Məhsul adı":"TOYOTA COROLLA (HİBRİD-BENZİN) LFMAAA0C4S0669115","Hissəli ödəniş məbləği":315200.0},{"Verilmə tarixi normal":"24.11.2025","Məhsul adı":"TOYOTA COROLLA (HİBRİD-BENZİN) LFMAAA0CXS0669104","Hissəli ödəniş məbləği":315200.0},{"Verilmə tarixi normal":"24.11.2025","Məhsul adı":"TOYOTA COROLLA (HİBRİD-BENZİN) LFMAAA0CXS0668938","Hissəli ödəniş məbləği":315200.0},{"Verilmə tarixi normal":"24.11.2025","Məhsul adı":"TOYOTA COROLLA (HİBRİD-BENZİN) LFMAAA0C0S0668981","Hissəli ödəniş məbləği":315200.0},{"Verilmə tarixi normal":"28.11.2025","Məhsul adı":"TOYOTA COROLLA (HİBRİD -BENZİN) LFMAAA0C6S0669956","Hissəli ödəniş məbləği":394000.0},{"Verilmə tarixi normal":"28.11.2025","Məhsul adı":"TOYOTA COROLLA (HİBRİD -BENZİN) LFMAAA0C6S0659377","Hissəli ödəniş məbləği":394000.0},{"Verilmə tarixi normal":"28.11.2025","Məhsul adı":"TOYOTA COROLLA (HİBRİD -BENZİN) LFMAAA0C3S0669767","Hissəli ödəniş məbləği":394000.0},{"Verilmə tarixi normal":"28.11.2025","Məhsul adı":"TOYOTA COROLLA (HİBRİD -BENZİN) LFMAAA0C8S0672633","Hissəli ödəniş məbləği":394000.0},{"Verilmə tarixi normal":"28.11.2025","Məhsul adı":"TOYOTA COROLLA (HİBRİD -BENZİN) LFMAAA0C4S0669521","Hissəli ödəniş məbləği":394000.0},{"Verilmə tarixi normal":"28.11.2025","Məhsul adı":"TOYOTA COROLLA (HİBRİD -BENZİN) LFMAAA0C0S0672786","Hissəli ödəniş məbləği":394000.0},{"Verilmə tarixi normal":"28.11.2025","Məhsul adı":"TOYOTA COROLLA (HİBRİD -BENZİN) LFMAAA0C6S0669746","Hissəli ödəniş məbləği":394000.0},{"Verilmə tarixi normal":"28.11.2025","Məhsul adı":"TOYOTA COROLLA (HİBRİD -BENZİN) LFMAAA0C0S0669533","Hissəli ödəniş məbləği":394000.0},{"Verilmə tarixi normal":"28.11.2025","Məhsul adı":"TOYOTA COROLLA (HİBRİD -BENZİN) LFMAAA0C0S0669676","Hissəli ödəniş məbləği":394000.0},{"Verilmə tarixi normal":"01.12.2025","Məhsul adı":"LIXIANG L9 ULTRA (PLUG-İN-HİBRİD BENZİN) HLX33B129S0460495","Hissəli ödəniş məbləği":106596.0},{"Verilmə tarixi normal":"01.12.2025","Məhsul adı":"CHANGAN QIYUAN Q07 (PLUG-İN-HİBRİD BENZİN) LS6BME2P7SA771808","Hissəli ödəniş məbləği":53604.0},{"Verilmə tarixi normal":"02.12.2025","Məhsul adı":"CHANGAN QIYUAN Q07 (PLUG-İN-HİBRİD BENZİN) LS6BME2PXSA764111","Hissəli ödəniş məbləği":52524.0},{"Verilmə tarixi normal":"02.12.2025","Məhsul adı":"BYD SEAL 05 (PLUG-İN-HİBRİD BENZİN) LC0C76C49S0540157","Hissəli ödəniş məbləği":23508.0},{"Verilmə tarixi normal":"02.12.2025","Məhsul adı":"BYD SEAL 05 (PLUG-İN-HİBRİD BENZİN) LC0C76C46S0541752","Hissəli ödəniş məbləği":23508.0},{"Verilmə tarixi normal":"02.12.2025","Məhsul adı":"BYD SEAL 05 (PLUG-İN-HİBRİD BENZİN) LC0C76C41S0541626","Hissəli ödəniş məbləği":23508.0},{"Verilmə tarixi normal":"02.12.2025","Məhsul adı":"BYD SEAL 05 (PLUG-İN-HİBRİD BENZİN) LC0C76C42S0540145","Hissəli ödəniş məbləği":23508.0},{"Verilmə tarixi normal":"02.12.2025","Məhsul adı":"BYD SEAL 05 (PLUG-İN-HİBRİD BENZİN) LC0C76C45S0541662","Hissəli ödəniş məbləği":23508.0},{"Verilmə tarixi normal":"02.12.2025","Məhsul adı":"BYD SEAL 05 (PLUG-İN-HİBRİD BENZİN) LC0C76C47S0541680","Hissəli ödəniş məbləği":23508.0},{"Verilmə tarixi normal":"02.12.2025","Məhsul adı":"BYD SEAL 05 (PLUG-İN-HİBRİD BENZİN) LC0C76C4XS0540068","Hissəli ödəniş məbləği":23508.0},{"Verilmə tarixi normal":"04.12.2025","Məhsul adı":"CHANGAN QIYUAN Q07 (PLUG-İN-HİBRİD BENZİN) LS6BME2P2SA763664","Hissəli ödəniş məbləği":30000.0},{"Verilmə tarixi normal":"04.12.2025","Məhsul adı":"LYNK CO 900 EM-P (PLUG-İN-HİBRİD BENZİN) L6T79END7ST227685","Hissəli ödəniş məbləği":121260.0},{"Verilmə tarixi normal":"04.12.2025","Məhsul adı":"BYD SEAL 05 (PLUG-İN-HİBRİD BENZİN) LC0C76C49S0541647","Hissəli ödəniş məbləği":23508.0},{"Verilmə tarixi normal":"04.12.2025","Məhsul adı":"BYD SEAL 05 (PLUG-İN-HİBRİD BENZİN) LC0C76C40S0541651","Hissəli ödəniş məbləği":23508.0},{"Verilmə tarixi normal":"04.12.2025","Məhsul adı":"BYD SEAL 05 (PLUG-İN-HİBRİD BENZİN) LC0C76C42S0541652","Hissəli ödəniş məbləği":23508.0},{"Verilmə tarixi normal":"04.12.2025","Məhsul adı":"BYD SEAL 05 (PLUG-İN-HİBRİD BENZİN) LC0C76C40S0542346","Hissəli ödəniş məbləği":23508.0},{"Verilmə tarixi normal":"04.12.2025","Məhsul adı":"BYD SEAL 05 (PLUG-İN-HİBRİD BENZİN) LC0C76C47S0542327","Hissəli ödəniş məbləği":23508.0},{"Verilmə tarixi normal":"04.12.2025","Məhsul adı":"BYD SEAL 05 (PLUG-İN-HİBRİD BENZİN) LC0C76C42S0541750","Hissəli ödəniş məbləği":23508.0},{"Verilmə tarixi normal":"08.12.2025","Məhsul adı":"CHANGAN QIYUAN Q07 (PLUG-İN-HİBRİD BENZİN) LS6BME2P6SA764073","Hissəli ödəniş məbləği":56400.0},{"Verilmə tarixi normal":"15.12.2025","Məhsul adı":"LIXIANG L9 ULTRA (PLUG-İN-HİBRİD BENZİN) HLX33B124S0460582","Hissəli ödəniş məbləği":140328.0},{"Verilmə tarixi normal":"15.12.2025","Məhsul adı":"BYD SEAL 05 (PLUG-İN-HİBRİD BENZİN) LC0C76C43S0541725","Hissəli ödəniş məbləği":23508.0},{"Verilmə tarixi normal":"18.12.2025","Məhsul adı":"BYD SEAL 05 (PLUG-İN-HİBRİD BENZİN) LC0C76C4XS0538207","Hissəli ödəniş məbləği":47016.0},{"Verilmə tarixi normal":"18.12.2025","Məhsul adı":"BYD SEAL 05 (PLUG-İN-HİBRİD BENZİN) LC0C76C49S0529787","Hissəli ödəniş məbləği":47016.0},{"Verilmə tarixi normal":"18.12.2025","Məhsul adı":"BYD SEAL 05 (PLUG-İN-HİBRİD BENZİN) LC0C76C48S0538206","Hissəli ödəniş məbləği":23508.0},{"Verilmə tarixi normal":"18.12.2025","Məhsul adı":"BYD SEAL 05 (PLUG-İN-HİBRİD BENZİN) LC0C76C46S0541640","Hissəli ödəniş məbləği":23508.0},{"Verilmə tarixi normal":"18.12.2025","Məhsul adı":"BYD SEAL 05 (PLUG-İN-HİBRİD BENZİN) LC0C76C40S0541665","Hissəli ödəniş məbləği":23508.0},{"Verilmə tarixi normal":"19.12.2025","Məhsul adı":"\" LİXİANG L7 ULTRA (PLUG-İN-HİBRİD BENZİN HLX33B121S1754662","Hissəli ödəniş məbləği":85680.0},{"Verilmə tarixi normal":"19.12.2025","Məhsul adı":"CHANGAN QİYUAN Q07 (PLUG-İN-HİBRİD BENZİN) LS6BME2P5SA771824","Hissəli ödəniş məbləği":48000.0},{"Verilmə tarixi normal":"22.12.2025","Məhsul adı":"LIXIANG L9 ULTRA (PLUG-İN-HİBRİD BENZİN) HLX33B12XS0461431","Hissəli ödəniş məbləği":141640.0},{"Verilmə tarixi normal":"22.12.2025","Məhsul adı":"CHANGAN DEEPAL S09 (PLUG-İN-HİBRİD BENZİN) LS6CMG34XSJ004409","Hissəli ödəniş məbləği":83952.0},{"Verilmə tarixi normal":"23.12.2025","Məhsul adı":"BYD SEAL 05 (PLUG-İN-HİBRİD BENZİN) LC0C76C47S0559080","Hissəli ödəniş məbləği":26028.0},{"Verilmə tarixi normal":"23.12.2025","Məhsul adı":"LIXIANG L7 ULTRA (PLUG-İN-HİBRİD BENZİN) HLX33B124S0773129","Hissəli ödəniş məbləği":114912.0},{"Verilmə tarixi normal":"24.12.2025","Məhsul adı":"BYD SEAL 05 (PLUG-İN-HİBRİD BENZİN) LC0C76C48S0540165","Hissəli ödəniş məbləği":109980.0},{"Verilmə tarixi normal":"24.12.2025","Məhsul adı":"BYD SEAL 05 (PLUG-İN-HİBRİD BENZİN) LC0C76C44S0541619","Hissəli ödəniş məbləği":109980.0},{"Verilmə tarixi normal":"24.12.2025","Məhsul adı":"BYD SEAL 05 (PLUG-İN-HİBRİD BENZİN) LC0C76C49S0541731","Hissəli ödəniş məbləği":109980.0},{"Verilmə tarixi normal":"24.12.2025","Məhsul adı":"BYD SEAL 05 (PLUG-İN-HİBRİD BENZİN) LC0C76C41S0541643","Hissəli ödəniş məbləği":109980.0},{"Verilmə tarixi normal":"24.12.2025","Məhsul adı":"BYD SEAL 05 (PLUG-İN-HİBRİD BENZİN) LC0C76C41S0536765","Hissəli ödəniş məbləği":109980.0},{"Verilmə tarixi normal":"25.12.2025","Məhsul adı":"BYD SEAL 05 (PLUG-İN-HİBRİD BENZİN) LC0C76C44S0468171","Hissəli ödəniş məbləği":23508.0},{"Verilmə tarixi normal":"29.12.2025","Məhsul adı":"BYD SEAL 05 (PLUG-İN-HİBRİD BENZİN) LC0C76C45S0529690","Hissəli ödəniş məbləği":23500.0},{"Verilmə tarixi normal":"30.12.2025","Məhsul adı":"BYD SEAL 05 (PLUG-İN-HİBRİD BENZİN) LC0C76C49S0542331","Hissəli ödəniş məbləği":47016.0},{"Verilmə tarixi normal":"30.12.2025","Məhsul adı":"BYD SEAL 05 (PLUG-İN-HİBRİD BENZİN) LC0C76C42S0541635","Hissəli ödəniş məbləği":47016.0},{"Verilmə tarixi normal":"05.01.2026","Məhsul adı":"CHANGAN QIYUAN Q07 (PLUG-İN-HİBRİD BENZİN) LS6BME2P5SA764193","Hissəli ödəniş məbləği":29000.0},{"Verilmə tarixi normal":"06.01.2026","Məhsul adı":"BYD SEAL 05 (PLUG-İN-HİBRİD BENZİN) LC0C76C42S0541621","Hissəli ödəniş məbləği":65988.0},{"Verilmə tarixi normal":"06.01.2026","Məhsul adı":"BYD SEAL 05 (PLUG-İN-HİBRİD BENZİN) LC0C76C48S0541638","Hissəli ödəniş məbləği":65988.0},{"Verilmə tarixi normal":"06.01.2026","Məhsul adı":"BYD SEAL 05 (PLUG-İN-HİBRİD BENZİN) LC0C76C43S0541689","Hissəli ödəniş məbləği":65988.0},{"Verilmə tarixi normal":"07.01.2026","Məhsul adı":"BYD SEAL 05 (PLUG-İN-HİBRİD BENZİN) LC0C76C45S0541726","Hissəli ödəniş məbləği":23508.0},{"Verilmə tarixi normal":"07.01.2026","Məhsul adı":"TOYOTA CAMRY (HİBRİD -BENZİN) LVGBECEK1SG618814","Hissəli ödəniş məbləği":30000.0},{"Verilmə tarixi normal":"08.01.2026","Məhsul adı":"BYD SEAL 05 (PLUG-İN-HİBRİD BENZİN) LC0C76C47S0559015","Hissəli ödəniş məbləği":23508.0},{"Verilmə tarixi normal":"09.01.2026","Məhsul adı":"BYD SEAL 05 (PLUG-İN-HİBRİD BENZİN) LC0C76C47S0541632","Hissəli ödəniş məbləği":23508.0},{"Verilmə tarixi normal":"12.01.2026","Məhsul adı":"BYD SEAL 05 (PLUG-İN-HİBRİD BENZİN) LC0C76C49S0541695","Hissəli ödəniş məbləği":23508.0},{"Verilmə tarixi normal":"13.01.2026","Məhsul adı":"CHANGAN QIYUAN Q07 (PLUG-İN-HİBRİD BENZİN) LS6BME2P8SA764284","Hissəli ödəniş məbləği":47448.0},{"Verilmə tarixi normal":"13.01.2026","Məhsul adı":"BYD SEAL 05 (PLUG-İN-HİBRİD BENZİN) LC0C76C41S0541710","Hissəli ödəniş məbləği":27108.0},{"Verilmə tarixi normal":"14.01.2026","Məhsul adı":"BYD SEAL 05 (PLUG-İN-HİBRİD BENZİN) LC0C76C49S0535296","Hissəli ödəniş məbləği":23508.0},{"Verilmə tarixi normal":"28.01.2026","Məhsul adı":"Nıssan Patrol JN8AY3NY6T9106728","Hissəli ödəniş məbləği":116028.0},{"Verilmə tarixi normal":"03.02.2026","Məhsul adı":"LYNK CO 900 EM-P (PLUG-İN-HİBRİD BENZİN) L6T79END0ST237586","Hissəli ödəniş məbləği":64080.0},{"Verilmə tarixi normal":"23.02.2026","Məhsul adı":"CHANGAN QIYUAN Q07 (PLUG-İN-HİBRİD BENZİN) LS6BME2P2SA771828","Hissəli ödəniş məbləği":49428.0},{"Verilmə tarixi normal":"25.02.2026","Məhsul adı":"BYD SEAL 05 (PLUG-İN-HİBRİD BENZİN) LC0C76C48S0535192","Hissəli ödəniş məbləği":18828.0},{"Verilmə tarixi normal":"02.03.2026","Məhsul adı":"MERCEDES BENZ C200 KUPE W1K2053771F984457","Hissəli ödəniş məbləği":37440.0},{"Verilmə tarixi normal":"02.03.2026","Məhsul adı":"MERCEDES BENZ GLS 450 W1N1679591B476076","Hissəli ödəniş məbləği":130908.0},{"Verilmə tarixi normal":"07.03.2026","Məhsul adı":"CHANGAN QİYUAN Q07 (PLUG-İN-HİBRİD BENZİN) LS6BME2P6SA764123","Hissəli ödəniş məbləği":53280.0},{"Verilmə tarixi normal":"07.03.2026","Məhsul adı":"FANGCHENGBAO LEOPARD 8 (PLUG-İN-HİBRİD BENZİN) LC0FD1C46S5378838","Hissəli ödəniş məbləği":66672.0},{"Verilmə tarixi normal":"16.03.2026","Məhsul adı":"TOYOTA CAMRY (HİBRİD-BENZİN) LVGBECEK2SG613671","Hissəli ödəniş məbləği":38400.0},{"Verilmə tarixi normal":"17.03.2026","Məhsul adı":"LIXIANG L7 ULTRA (PLUG-İN-HİBRİD BENZİN) HLX33B121S1754452","Hissəli ödəniş məbləği":72936.0},{"Verilmə tarixi normal":"19.03.2026","Məhsul adı":"TOYOTA COROLLA (HİBRİD -BENZİN) LFMAAA0C0S0669757","Hissəli ödəniş məbləği":157600.0},{"Verilmə tarixi normal":"19.03.2026","Məhsul adı":"TOYOTA COROLLA (HİBRİD-BENZİN) LFMAAA0C0S0673758","Hissəli ödəniş məbləği":157600.0},{"Verilmə tarixi normal":"19.03.2026","Məhsul adı":"TOYOTA COROLLA (HİBRİD -BENZİN) LFMAAA0C7S0674308","Hissəli ödəniş məbləği":157600.0},{"Verilmə tarixi normal":"19.03.2026","Məhsul adı":"TOYOTA COROLLA (HİBRİD -BENZİN) LFMAAA0C0S0674277","Hissəli ödəniş məbləği":157600.0},{"Verilmə tarixi normal":"27.03.2026","Məhsul adı":"TOYOTA CAMRY (HİBRİD – BENZİN) LVGBECEK9SG101583","Hissəli ödəniş məbləği":29520.0},{"Verilmə tarixi normal":"31.03.2026","Məhsul adı":"ZEEKR 9X ULTRA (PLUG-İN-HİBRİD BENZİN) L6T795ND4SN153565","Hissəli ödəniş məbləği":190368.0},{"Verilmə tarixi normal":"06.04.2026","Məhsul adı":"Mercedes-Benz AMG G63 W1N4652501X084512","Hissəli ödəniş məbləği":135535.0},{"Verilmə tarixi normal":"09.04.2026","Məhsul adı":"LİXİANG L9 ULTRA (PLUG-İN-HİBRİD BENZİN) HLX33B126S0461586","Hissəli ödəniş məbləği":132588.0},{"Verilmə tarixi normal":"09.04.2026","Məhsul adı":"LİXİANG L9 ULTRA HLX33B123S1449227","Hissəli ödəniş məbləği":117304.0},{"Verilmə tarixi normal":"16.04.2026","Məhsul adı":"TOYOTA COROLLA (HİBRİD -BENZİN) LFMAAA0CXS0673959","Hissəli ödəniş məbləği":331700.0},{"Verilmə tarixi normal":"16.04.2026","Məhsul adı":"TOYOTA COROLLA (HİBRİD -BENZİN) LFMAAA0C2S0674457","Hissəli ödəniş məbləği":331700.0},{"Verilmə tarixi normal":"16.04.2026","Məhsul adı":"TOYOTA COROLLA (HİBRİD -BENZİN) LFMAAA0C1S0674269","Hissəli ödəniş məbləği":331700.0},{"Verilmə tarixi normal":"16.04.2026","Məhsul adı":"TOYOTA COROLLA (HİBRİD -BENZİN) LFMAAA0C9S0673967","Hissəli ödəniş məbləği":331700.0},{"Verilmə tarixi normal":"16.04.2026","Məhsul adı":"TOYOTA COROLLA (HİBRİD-BENZİN) LFMAAA0C7S0673952","Hissəli ödəniş məbləği":331700.0},{"Verilmə tarixi normal":"21.04.2026","Məhsul adı":"LİXİANG L9 ULTRA (PLUG-İN-HİBRİD BENZİN) HLX33B123S0459200","Hissəli ödəniş məbləği":132588.0},{"Verilmə tarixi normal":"22.04.2026","Məhsul adı":"CHANGAN QIYUAN Q07 (PLUG-İN-HİBRİD BENZİN) LS6BME2P7SA721006","Hissəli ödəniş məbləği":142800.0},{"Verilmə tarixi normal":"22.04.2026","Məhsul adı":"FANGCHENGBAO LEOPARD 7 (PLUG-İN HİBRİD BENZİN) LC0FD4C44S7206054","Hissəli ödəniş məbləği":142800.0},{"Verilmə tarixi normal":"23.04.2026","Məhsul adı":"Mercedes Benz MAYBACH GLS 600 (PLUG-İN-HİBRİD BENZİN) W1N1679871A682568","Hissəli ödəniş məbləği":386748.0},{"Verilmə tarixi normal":"23.04.2026","Məhsul adı":"LİXİANG L9 ULTRA (PLUG-İN-HİBRİD BENZİN) HLX33B127S0461905","Hissəli ödəniş məbləği":99984.0},{"Verilmə tarixi normal":"29.04.2026","Məhsul adı":"BYD SEAL 05 (PLUG-İN-HİBRİD BENZİN) LC0C76C43S0540039","Hissəli ödəniş məbləği":18000.0},{"Verilmə tarixi normal":"29.04.2026","Məhsul adı":"Changan X5 Plus LS4ASE2E4SB448299","Hissəli ödəniş məbləği":13200.0},{"Verilmə tarixi normal":"07.05.2026","Məhsul adı":"ZEEKR 9X (PLUG-İN-HİBRİD-BENZİN) L6T796ND5SN154830","Hissəli ödəniş məbləği":232092.0},{"Verilmə tarixi normal":"18.05.2026","Məhsul adı":"LYNK CO 900 EM-P (PLUG-IN HİBRİD BENZİN) L6T79END1ST233580","Hissəli ödəniş məbləği":114912.0},{"Verilmə tarixi normal":"20.05.2026","Məhsul adı":"AVATR 07 (PLUG-IN HİBRİD BENZİN) LS6J3G340SK400174","Hissəli ödəniş məbləği":72936.0},{"Verilmə tarixi normal":"01.06.2026","Məhsul adı":"NISSAN PATROL JN8AY3NY9T9115245","Hissəli ödəniş məbləği":226800.0},{"Verilmə tarixi normal":"01.06.2026","Məhsul adı":"NISSAN PATROL JN8AY3NY0T9115649","Hissəli ödəniş məbləği":226800.0},{"Verilmə tarixi normal":"04.06.2026","Məhsul adı":"MERCEDES BENZ C63 AMG S W1KAF8AB5RF146718","Hissəli ödəniş məbləği":187848.0},{"Verilmə tarixi normal":"18.06.2026","Məhsul adı":"TOYOTA COROLLA (HİBRİD-BENZİN) LFMAAA0C0S0674005","Hissəli ödəniş məbləği":332374.0},{"Verilmə tarixi normal":"18.06.2026","Məhsul adı":"TOYOTA COROLLA (HİBRİD-BENZİN) LFMAAA0C8S0674253","Hissəli ödəniş məbləği":332374.0},{"Verilmə tarixi normal":"18.06.2026","Məhsul adı":"TOYOTA COROLLA (HİBRİD-BENZİN) LFMAAA0C6S0673974","Hissəli ödəniş məbləği":332374.0},{"Verilmə tarixi normal":"18.06.2026","Məhsul adı":"TOYOTA COROLLA (HİBRİD-BENZİN) LFMAAA0C1S0674742","Hissəli ödəniş məbləği":332374.0},{"Verilmə tarixi normal":"18.06.2026","Məhsul adı":"TOYOTA COROLLA (HİBRİD-BENZİN) LFMAAA0C6S0674543","Hissəli ödəniş məbləği":332374.0},{"Verilmə tarixi normal":"18.06.2026","Məhsul adı":"TOYOTA COROLLA (HİBRİD-BENZİN) LFMAAA0C5S0673982","Hissəli ödəniş məbləği":332374.0},{"Verilmə tarixi normal":"18.06.2026","Məhsul adı":"TOYOTA COROLLA (HİBRİD-BENZİN) LFMAAA0C4S0674511","Hissəli ödəniş məbləği":332374.0},{"Verilmə tarixi normal":"30.06.2026","Məhsul adı":"CHANGAN QİYUAN Q07 (PLUG-İN-HİBRİD BENZİN) LS6BME2P8SA721077","Hissəli ödəniş məbləği":42912.0},{"Verilmə tarixi normal":"30.06.2026","Məhsul adı":"LYNK CO 900 EM-P (PLUG-İN-HİBRİD BENZİN) L6T79ENDXST234906","Hissəli ödəniş məbləği":99960.0},{"Verilmə tarixi normal":"02.07.2026","Məhsul adı":"CHANGAN QIYUAN Q07 (PLUG-İN-HİBRİD BENZİN) LS6BME2P4SA721058","Hissəli ödəniş məbləği":39600.0},{"Verilmə tarixi normal":"06.07.2026","Məhsul adı":"CHANGAN QIYUAN Q07 (PLUG-İN-HİBRİD BENZİN) LS6BME2P1SA768824","Hissəli ödəniş məbləği":52800.0},{"Verilmə tarixi normal":"07.07.2026","Məhsul adı":"BYD SEAL 05 (PLUG-İN-HİBRİD BENZİN) LC0C76C49S0559050","Hissəli ödəniş məbləği":24696.0},{"Verilmə tarixi normal":"17.07.2026","Məhsul adı":"BYD SEAL 05 (PLUG-İN-HİBRİD BENZİN) LC0C76C46S0466812","Hissəli ödəniş məbləği":26945.0},{"Verilmə tarixi normal":"17.07.2026","Məhsul adı":"BYD SEAL 05 (PLUG-İN-HİBRİD BENZİN) LC0C76C44S0529759","Hissəli ödəniş məbləği":26945.0},{"Verilmə tarixi normal":"17.07.2026","Məhsul adı":"BYD SEAL 05 (PLUG-İN-HİBRİD BENZİN) LC0C76C49S0542376","Hissəli ödəniş məbləği":26945.0},{"Verilmə tarixi normal":"17.07.2026","Məhsul adı":"BYD SEAL 05 (PLUG-İN-HİBRİD BENZİN) LC0C76C49S0556603","Hissəli ödəniş məbləği":26945.0},{"Verilmə tarixi normal":"17.07.2026","Məhsul adı":"BYD SEAL 05 (PLUG-İN-HİBRİD BENZİN) LC0C76C42S0544373","Hissəli ödəniş məbləği":26945.0},{"Verilmə tarixi normal":"24.07.2026","Məhsul adı":"BYD SEAL 05 (PLUG-İN-HİBRİD BENZİN) LC0C76C40S0544436","Hissəli ödəniş məbləği":26945.0},{"Verilmə tarixi normal":"24.07.2026","Məhsul adı":"BYD SEAL 05 (PLUG-İN-HİBRİD BENZİN) LC0C76C41S0529802","Hissəli ödəniş məbləği":26945.0},{"Verilmə tarixi normal":"24.07.2026","Məhsul adı":"BYD SEAL 05 (PLUG-İN-HİBRİD BENZİN) LC0C76C45S0544402","Hissəli ödəniş məbləği":26945.0},{"Verilmə tarixi normal":"24.07.2026","Məhsul adı":"BYD SEAL 05 (PLUG-İN-HİBRİD BENZİN) LC0C76C46S0556946","Hissəli ödəniş məbləği":26945.0},{"Verilmə tarixi normal":"24.07.2026","Məhsul adı":"BYD SEAL 05 (PLUG-İN-HİBRİD BENZİN) LC0C76C41S0544428","Hissəli ödəniş məbləği":26945.0},{"Verilmə tarixi normal":"24.07.2026","Məhsul adı":"BYD SEAL 05 (PLUG-İN-HİBRİD BENZİN) LC0C76C42S0544440","Hissəli ödəniş məbləği":26945.0},{"Verilmə tarixi normal":"24.07.2026","Məhsul adı":"BYD SEAL 05 (PLUG-İN-HİBRİD BENZİN) LC0C76C43S0542308","Hissəli ödəniş məbləği":26945.0},{"Verilmə tarixi normal":"28.07.2026","Məhsul adı":"ZEEKR 9X (PLUG IN HİBRİD BENZİN) L6T795ND0SN154101","Hissəli ödəniş məbləği":226080.0},{"Verilmə tarixi normal":"03.08.2026","Məhsul adı":"TOYOTA CAMRY (HİBRİD-BENZİN) LVGBECEK7TG117718","Hissəli ödəniş məbləği":71273.0},{"Verilmə tarixi normal":"05.08.2026","Məhsul adı":"BYD SEAL 05 (PLUG-İN-HİBRİD BENZİN) LC0C76C44S0533102","Hissəli ödəniş məbləği":26028.0},{"Verilmə tarixi normal":"10.08.2026","Məhsul adı":"TOYOTA CAMRY (HİBRİD -BENZİN) LVGBECEK4TG130619","Hissəli ödəniş məbləği":71496.0},{"Verilmə tarixi normal":"13.08.2026","Məhsul adı":"TOYOTA CAMRY (HİBRİD-BENZİN) LVGBECEK0TG117916","Hissəli ödəniş məbləği":71496.0},{"Verilmə tarixi normal":"13.08.2026","Məhsul adı":"BYD LEOPARD 8 (PLUG-İN-HİBRİD BENZİN) LC0FD1C42S5077614","Hissəli ödəniş məbləği":53907.0},{"Verilmə tarixi normal":"19.08.2026","Məhsul adı":"BYD SEA LION (PLUG-IN HİBRİD BENZİN) LGXC74C41S0788243","Hissəli ödəniş məbləği":56016.0},{"Verilmə tarixi normal":"21.08.2026","Məhsul adı":"TOYOTA CAMRY (HİBRİD -BENZİN) LVGBECEK8SG568431","Hissəli ödəniş məbləği":30074.0},{"Verilmə tarixi normal":"24.08.2026","Məhsul adı":"BYD SEAL 05 (PLUG-İN-HİBRİD BENZİN) LC0C76C47S0559001","Hissəli ödəniş məbləği":25872.0},{"Verilmə tarixi normal":"24.08.2026","Məhsul adı":"TOYOTA RAV 4 (HİBRİD-BENZİN) LFMJAFBF0T3004149","Hissəli ödəniş məbləği":85104.0},{"Verilmə tarixi normal":"25.08.2026","Məhsul adı":"LİXİANG L9 ULTRA (PLUG-İN-HİBRİD BENZİN) HLX33B121S0462032","Hissəli ödəniş məbləği":107100.0},{"Verilmə tarixi normal":"27.08.2026","Məhsul adı":"Mercedes Benz Gle 53 AMG Coupe 4 Matic Hibrid MinikW1N1673611B005438","Hissəli ödəniş məbləği":212148.0},{"Verilmə tarixi normal":"04.09.2026","Məhsul adı":"BYD SEAL 05 (PLUG-İN-HİBRİD BENZİN) LC0C76C44S0542320","Hissəli ödəniş məbləği":26688.0},{"Verilmə tarixi normal":"07.09.2026","Məhsul adı":"TOYOTA CAMRY (HİBRİD-BENZİN) LVGBECEK1TG118590","Hissəli ödəniş məbləği":83328.0},{"Verilmə tarixi normal":"07.09.2026","Məhsul adı":"NISSAN PATROL JN8AY3NY4T9116626","Hissəli ödəniş məbləği":254160.0},{"Verilmə tarixi normal":"07.09.2026","Məhsul adı":"TOYOTA COROLLA (HİBRİD-BENZİN) LFMAAA0C3T0720783","Hissəli ödəniş məbləği":32400.0},{"Verilmə tarixi normal":"07.09.2026","Məhsul adı":"BYD SEAL 05 (PLUG-İN-HİBRİD BENZİN) LC0C76C46S0541623","Hissəli ödəniş məbləği":26028.0},{"Verilmə tarixi normal":"14.09.2026","Məhsul adı":"TOYOTA CAMRY (HİBRİD-BENZİN) LVGBECEK2TG681597","Hissəli ödəniş məbləği":64800},{"Verilmə tarixi normal":"15.09.2026","Məhsul adı":"JEEP WRANGLER RUBICCON 1C4PJXFN6RW177556","Hissəli ödəniş məbləği":123768},{"Verilmə tarixi normal":"15.09.2026","Məhsul adı":"TOYOTA CAMRY (HİBRİD-BENZİN) LVGBECEK6TG118908","Hissəli ödəniş məbləği":68508},{"Verilmə tarixi normal":"15.09.2026","Məhsul adı":"BYD SEAL 05 (PLUG-İN-HİBRİD BENZİN) LC0C76C45S0504238","Hissəli ödəniş məbləği":107784},{"Verilmə tarixi normal":"15.09.2026","Məhsul adı":"BYD SEAL 05 (PLUG-İN-HİBRİD BENZİN) LC0C76C4XS0526610","Hissəli ödəniş məbləği":107784},{"Verilmə tarixi normal":"15.09.2026","Məhsul adı":"BYD SEAL 05 (PLUG-İN-HİBRİD BENZİN) LC0C76C41S0474526","Hissəli ödəniş məbləği":107784},{"Verilmə tarixi normal":"15.09.2026","Məhsul adı":"BYD SEAL 05 (PLUG-İN-HİBRİD BENZİN) LC0C76C43S0555687","Hissəli ödəniş məbləği":107784}];
+
+function canonicalMyCarsModel(raw) {
+  let s = String(raw || "").trim().replace(/^[\s\"'“”]+|[\s\"'“”]+$/g, "");
+  if (!s) return "Model qeyd olunmayıb";
+  let u = s.toUpperCase().replace(/İ/g,"I").replace(/İ/g,"I");
+  const pick = (label) => label;
+  if (/LIXIANG|LIXIANG|(^|\s)L9\s/.test(u)) {
+    const m=u.match(/\bL(6|7|9)\b/); const t=u.match(/\b(ULTRA|PRO|MAX)\b/);
+    return `LIXIANG ${m?m[0]:""}${t?" "+t[1]:""}`.trim();
+  }
+  if (u.includes("TOYOTA CAMRY")) return pick("TOYOTA CAMRY");
+  if (u.includes("TOYOTA COROLLA")) return pick("TOYOTA COROLLA");
+  if (u.includes("TOYOTA HIGHLANDER")) return pick("TOYOTA HIGHLANDER");
+  if (u.includes("TOYOTA RAV 4") || u.includes("TOYOTA RAV4")) return pick("TOYOTA RAV 4");
+  if (u.includes("NISSAN PATROL") || u.includes("NISSAN POTRUL") || u.includes("NISSAN PATROL")) return pick("NISSAN PATROL");
+  if (u.includes("BYD SEAL 05")) return pick("BYD SEAL 05");
+  if (u.includes("DENZA N9")) return pick("BYD DENZA N9");
+  if (u.includes("LEOPARD 8")) return pick("BYD LEOPARD 8");
+  if (u.includes("LEOPARD 7")) return pick("FANGCHENGBAO LEOPARD 7");
+  if (u.includes("SEA LION")) return pick("BYD SEA LION");
+  if (u.includes("CHANGAN") && (u.includes("Q07") || u.includes("QIYUAN") || u.includes("QIYUAN"))) return pick("CHANGAN QIYUAN Q07");
+  if (u.includes("DEEPAL S09")) return pick("CHANGAN DEEPAL S09");
+  if (u.includes("LYNK") && u.includes("900")) return pick("LYNK & CO 900 EM-P");
+  if (u.includes("ZEEKR 9X")) return pick("ZEEKR 9X");
+  if (u.includes("ZEEKR 7X")) return pick("ZEEKR 7X");
+  if (u.includes("ZEEKR 001")) return pick("ZEEKR 001");
+  if (u.includes("BMW I7")) return pick("BMW I7");
+  if (u.includes("POLESTAR")) return pick("POLESTAR");
+  if (u.includes("VW ID 6") || u.includes("VOLKSWAGEN ID 6")) return pick("VOLKSWAGEN ID.6");
+  if (u.includes("AVATR 07")) return pick("AVATR 07");
+  if (u.includes("MERCEDES") && u.includes("G63")) return pick("MERCEDES-BENZ AMG G63");
+  if (u.includes("MERCEDES") && u.includes("GLS 600")) return pick("MERCEDES-BENZ MAYBACH GLS 600");
+  if (u.includes("MERCEDES") && u.includes("GLS 450")) return pick("MERCEDES-BENZ GLS 450");
+  if (u.includes("MERCEDES") && u.includes("GLE 53")) return pick("MERCEDES-BENZ GLE 53 AMG");
+  if (u.includes("MERCEDES") && u.includes("C63")) return pick("MERCEDES-BENZ C63 AMG S");
+  if (u.includes("MERCEDES") && u.includes("C200")) return pick("MERCEDES-BENZ C200");
+  if (u.includes("SKODA OCTAVIA")) return pick("SKODA OCTAVIA");
+  if (u.includes("JETOUR T2")) return pick("JETOUR T2");
+  if (u.includes("CHANGAN X5")) return pick("CHANGAN X5 PLUS");
+  // Generic fallback: strip VIN-like 17-char code and powertrain details.
+  s=s.replace(/\(?\s*(?:VIN|VİN)?\s*:?[A-HJ-NPR-Z0-9]{17}\s*\)?/gi,"")
+     .replace(/\([^)]*(?:HİBRİD|HIBRID|ELEKTRİK|BENZİN|BENZIN)[^)]*\)/gi,"")
+     .replace(/\s{2,}/g," ").trim();
+  return s || "Model qeyd olunmayıb";
+}
+
+function getMyCarsVehicleMetrics(year, month) {
+  const mm=String(month).padStart(2,"0"), yy=String(year);
+  const groups=new Map(); let count=0;
+  for (const r of MYCARS_VEHICLE_ROWS) {
+    const d=String(r["Verilmə tarixi normal"]||"").trim();
+    const dm=d.match(/^(\d{1,2})[.\/-](\d{1,2})[.\/-](\d{4})$/);
+    if (!dm || dm[3]!==yy || String(dm[2]).padStart(2,"0")!==mm) continue;
+    if (toNum(r["Hissəli ödəniş məbləği"])<=0) continue;
+    count++;
+    const model=canonicalMyCarsModel(r["Məhsul adı"]);
+    groups.set(model,(groups.get(model)||0)+1);
+  }
+  return { count, models:[...groups.entries()].sort((a,b)=>b[1]-a[1]||a[0].localeCompare(b[0],"az")) };
+}
+
+function toggleMyCarsModelBreakdown() {
+  myCarsModelBreakdownOpen=!myCarsModelBreakdownOpen;
+  const box=document.getElementById("myCarsModelBreakdown");
+  const btn=document.getElementById("myCarsCarCountBtn");
+  if (box) box.hidden=!myCarsModelBreakdownOpen;
+  if (btn) btn.setAttribute("aria-expanded", String(myCarsModelBreakdownOpen));
+}
+
 
 const MYSHOPS_PANELS = ["overview", "targets", "monthly", "risk", "teams", "applications", "texno", "archive"];
 const MYCARS_PANELS = ["overview", "monthly", "risk"];
@@ -2034,10 +2128,10 @@ function toNum(x) {
       : s.replace(/,/g,"");
   } else if (s.includes(",")) {
     const parts = s.split(",");
-    const thousandGroups = parts.length > 1 && parts.every((part, i) => (
-      i === 0 ? /^\d{1,3}$/.test(part) && part !== "0" : /^\d{3}$/.test(part)
+    const thousandGroups = !hadPercent && parts.length > 1 && parts.every((part, i) => (
+      i === 0 ? /^\d{1,3}$/.test(part) : /^\d{3}$/.test(part)
     ));
-    s = !hadPercent && thousandGroups ? parts.join("") : s.replace(/,/g,".");
+    s = thousandGroups ? parts.join("") : s.replace(/,/g,".");
   } else if (s.includes(".")) {
     const parts = s.split(".");
     const thousandGroups = parts.length > 1 && parts.every((part, i) => (
@@ -2176,15 +2270,13 @@ function buildLine(data25, data26) {
   });
 }
 
-function buildMonthlyTable(salesMap, platMap, b2bMap, instMap, targetMap, productMap) {
+function buildMonthlyTable(salesMap, platMap, b2bMap, instMap, targetMap, year) {
   const headerCells = MONTHS.names.map(m=>`<th>${m}</th>`).join("");
   if (currentSourceKey === "mycars") {
-    const rowsHTML = `<tr class="row-total"><td>Verilən kredit</td>${MONTHS.nums.map(m=>{
-      const v = instMap.get(m);
-      const count = productMap?.get(m);
-      return `<td>${v==null?"–":fmtAZN(v)}<div class="kpi-sub">${fmtProductCount(count)}</div></td>`;
-    }).join("")}</tr>`;
-    return `<table><thead><tr><th style="min-width:180px;">Göstərici</th>${headerCells}</tr></thead><tbody>${rowsHTML}</tbody></table>`;
+    year = year || monthlyState.year;
+    const creditRow = `<tr class="row-total"><td>Verilən kredit</td>${MONTHS.nums.map(m=>{ const v=instMap.get(m); return `<td>${v==null?"–":fmtAZN(v)}</td>`; }).join("")}</tr>`;
+    const carRow = `<tr class="row-sub"><td>Satılan avtomobil</td>${MONTHS.nums.map(m=>`<td>${getMyCarsVehicleMetrics(year,m).count} ədəd</td>`).join("")}</tr>`;
+    return `<table><thead><tr><th style="min-width:180px;">Göstərici</th>${headerCells}</tr></thead><tbody>${creditRow}${carRow}</tbody></table>`;
   }
   const rowsHTML =
     `<tr class="row-total"><td>Ümumi satış</td>${MONTHS.nums.map(m=>{
@@ -2259,13 +2351,9 @@ function renderMyCarsMonthlyWorkspace(initial=false) {
     const targetPctNum = target ? ((value || 0) / target) * 100 : 0;
     const progressWidth = Math.min(Math.max(targetPctNum, 0), 100);
     return `<button class="month-chip ${monthlyState.month===m?"active":""} ${target && targetPctNum>=100?"target-ok":""}" onclick="selectMonth('${m}')">
-      <span class="m-head">
-        <span class="m-name">${MONTHS.names[idx]}</span>
-        <span class="m-credit-summary">
-          <span class="m-value">${value==null ? "Məlumat yoxdur" : fmtAZN(value)}</span>
-          <span class="m-product-count">${fmtProductCount(metrics.productCount)}</span>
-        </span>
-      </span>
+      <span class="m-head"><span class="m-name">${MONTHS.names[idx]}</span><span class="m-target-pct">${target ? targetPctNum.toFixed(1)+"%" : ""}</span></span>
+      <span class="m-value">${value==null ? "Məlumat yoxdur" : fmtAZN(value)}</span>
+      <span class="m-car-count">Avtomobil: ${getMyCarsVehicleMetrics(monthlyState.year,m).count} ədəd</span>
       ${target ? `<span class="month-progress-track"><span class="month-progress-bar" style="width:${progressWidth}%"></span></span><span class="m-target-text">Hədəf: ${fmtAZN(target)}</span>` : ""}
     </button>`;
   }).join("");
@@ -2284,11 +2372,19 @@ function renderMyCarsMonthlyWorkspace(initial=false) {
     </div>
     <div class="metric-grid">
       <div class="metric-tile primary installment-feature">
-        <div class="installment-topline"><div class="metric-label">Verilən kredit</div><div class="monthly-product-count"><span>Məhsul sayı</span><strong>${fmtProductCount(metrics.productCount)}</strong></div></div>
+        <div class="metric-label">Verilən kredit</div>
         <div class="metric-value">${metrics.installment==null ? "–" : fmtAZN(metrics.installment)}</div>
         <div class="metric-sub">Portfel sheet-i üzrə verilmə tarixinə görə aylıq kredit məbləği</div>
       </div>
+      <button class="metric-tile car-count-feature" id="myCarsCarCountBtn" type="button" onclick="toggleMyCarsModelBreakdown()" aria-expanded="${myCarsModelBreakdownOpen}">
+        <div class="car-count-head"><div><div class="metric-label">Satılan avtomobil</div><div class="metric-value">${getMyCarsVehicleMetrics(monthlyState.year,monthlyState.month).count} ədəd</div></div><span class="car-count-chevron">⌄</span></div>
+        <div class="metric-sub">Model bölgüsünü görmək üçün kliklə</div>
+      </button>
       ${metrics.target ? `<div class="metric-tile performance ${targetPctNum>=100?"positive":""}"><div class="metric-label">Hədəf</div><div class="metric-value">${fmtAZN(metrics.target)}</div><div class="progress-track"><div class="progress-bar" style="width:${targetWidth}%"></div></div><div class="metric-sub">İcra: ${targetPctNum.toFixed(1)}%</div></div>` : ""}
+    </div>
+    <div class="mycars-model-breakdown" id="myCarsModelBreakdown" ${myCarsModelBreakdownOpen?"":"hidden"}>
+      <div class="model-breakdown-title">${monthName} ${monthlyState.year} · Modellər üzrə satış</div>
+      ${getMyCarsVehicleMetrics(monthlyState.year,monthlyState.month).models.length ? getMyCarsVehicleMetrics(monthlyState.year,monthlyState.month).models.map(([model,count])=>`<div class="model-row"><span class="model-row-name">${model}</span><span class="model-row-count">${count} ədəd</span></div>`).join("") : `<div class="metric-sub">Bu ay üçün avtomobil yoxdur.</div>`}
     </div>`;
 }
 
@@ -2349,11 +2445,13 @@ function renderMonthlyWorkspace(initial=false) {
 }
 
 function selectMonthYear(year) {
+  myCarsModelBreakdownOpen = false;
   monthlyState.year = String(year);
   monthlyState.month = latestMonthWithData(monthlyState.year);
   renderMonthlyWorkspace(false);
 }
 function selectMonth(month) {
+  myCarsModelBreakdownOpen = false;
   monthlyState.month = String(month);
   renderMonthlyWorkspace(false);
 }
@@ -3077,7 +3175,7 @@ function renderMonthlyApplicationRates(rows) {
   }).join("");
 }
 
-function fetchGoogleRange(sheet, range, headers = 0, sheetId = SOURCE_CONFIG.myshops.sheetId) {
+function fetchGoogleRange(sheet, range, headers = 0) {
   return new Promise((resolve, reject) => {
     const script = document.createElement("script");
     const googleRoot = window.google || (window.google = {});
@@ -3109,29 +3207,9 @@ function fetchGoogleRange(sheet, range, headers = 0, sheetId = SOURCE_CONFIG.mys
       cleanup();
       reject(new Error(`${sheet} diapazonu yüklənmədi`));
     };
-    script.src = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(sheet)}&range=${encodeURIComponent(range)}&headers=${headers}&_=${Date.now()}`;
+    script.src = `https://docs.google.com/spreadsheets/d/${SOURCE_CONFIG.myshops.sheetId}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(sheet)}&range=${encodeURIComponent(range)}&headers=${headers}&_=${Date.now()}`;
     document.head.appendChild(script);
   });
-}
-
-async function fetchMyCarsMonthlyProductCounts() {
-  const rows = await fetchGoogleRange("Portfel", "AY2:AY4999", 0, SOURCE_CONFIG.mycars.sheetId);
-  return rows.reduce((counts, cells) => {
-    const raw = String(cells[0]?.f || cells[0]?.v || "").trim();
-    let year, month;
-    const formatted = raw.match(/^(\d{1,2})[.\-/](\d{1,2})[.\-/](\d{4})$/);
-    const googleDate = raw.match(/^Date\((\d{4}),(\d{1,2}),\d{1,2}\)$/);
-    if (formatted) {
-      year = formatted[3];
-      month = formatted[2].padStart(2, "0");
-    } else if (googleDate) {
-      year = googleDate[1];
-      month = String(Number(googleDate[2]) + 1).padStart(2, "0");
-    } else return counts;
-    const key = `${year}-${month}`;
-    counts[key] = (counts[key] || 0) + 1;
-    return counts;
-  }, {});
 }
 
 async function fetchPortfolioRiskRange() {
@@ -3179,6 +3257,47 @@ async function fetchAll() {
   return Object.fromEntries(results.filter(r=>r.status==="fulfilled").map(r=>[r.value.key,r.value.data]));
 }
 
+let par130DetailItems = [];
+let par130DetailTotal = 0;
+function parsePar130Details(raw) {
+  return String(raw || "")
+    .split(";")
+    .map(part => part.trim())
+    .filter(Boolean)
+    .map(part => {
+      const idx = part.lastIndexOf("|");
+      if (idx < 0) return { name: part, amount: 0 };
+      return { name: part.slice(0, idx).trim(), amount: toNum(part.slice(idx + 1)) };
+    })
+    .filter(item => item.name);
+}
+function renderPar130DetailPanel() {
+  const panel = document.getElementById("par130DetailPanel");
+  if (!panel) return;
+  if (!par130DetailItems.length) {
+    panel.innerHTML = `<div class="par130-detail-empty">PAR1-30 üzrə manual detal daxil edilməyib.</div>`;
+    return;
+  }
+  panel.innerHTML = `
+    <div class="par130-detail-head">
+      <div class="par130-detail-title">PAR1-30 — gecikmədə olan şirkətlər</div>
+      <div class="par130-detail-total">${fmtAZN(par130DetailTotal)}</div>
+    </div>
+    <div class="par130-detail-list">
+      ${par130DetailItems.map(item => `
+        <div class="par130-detail-row">
+          <div class="par130-detail-name">${item.name}</div>
+          <div class="par130-detail-amount">${fmtAZN(item.amount)}</div>
+        </div>`).join("")}
+    </div>`;
+}
+function togglePar130Details() {
+  const panel = document.getElementById("par130DetailPanel");
+  if (!panel) return;
+  renderPar130DetailPanel();
+  panel.hidden = !panel.hidden;
+}
+
 async function loadData() {
   const overlay = document.getElementById("loadOverlay");
   overlay.classList.remove("hidden");
@@ -3202,20 +3321,7 @@ async function loadData() {
           catch (error) { console.warn("Aylıq müraciət faizi:", error); }
           return { portfolioRiskRows, monthlyProductCount, monthlySheetProductCounts, applicationRateRows, monthlyApplicationRateRows };
         })()
-      : (async () => {
-          let monthlySheetProductCounts = {};
-          try { monthlySheetProductCounts = await fetchMyCarsMonthlyProductCounts(); }
-          catch (error) { console.warn("MyCars aylıq məhsul sayları:", error); }
-          const now = new Date();
-          const currentKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
-          return {
-            portfolioRiskRows: [],
-            monthlyProductCount: monthlySheetProductCounts[currentKey] ?? null,
-            monthlySheetProductCounts,
-            applicationRateRows: [],
-            monthlyApplicationRateRows: []
-          };
-        })();
+      : Promise.resolve({ portfolioRiskRows: [], monthlyProductCount: null, monthlySheetProductCounts: {}, applicationRateRows: [], monthlyApplicationRateRows: [] });
     const [allData, supplemental] = await Promise.all([fetchAll(), supplementalPromise]);
     const { portfolioRiskRows, monthlyProductCount, monthlySheetProductCounts, applicationRateRows, monthlyApplicationRateRows } = supplemental;
     const { main, inst25, inst26, sales25, sales26, pdf, texno, sheet4, applicationRate } = allData;
@@ -3237,6 +3343,12 @@ async function loadData() {
     const activeCount = toNum(d["Aktiv müştəri sayı"]);
     const par30pct    = d.Par30||"0%";
     const par130Raw   = pickField(d, ["Par1-30", "PAR1-30", "par1-30", "Par 1-30", "PAR 1-30", "Par1_30", "PAR1_30"]);
+    const par130AmountManual = toNum(pickField(d, ["Par1-30 Amount", "PAR1-30 Amount", "Par1-30 məbləği", "PAR1-30 məbləği"]));
+    const par130DetailRaw = pickField(d, ["Par1-30 Detal", "PAR1-30 Detal", "Par1-30 detal", "PAR1-30 detal"]);
+    par130DetailItems = parsePar130Details(par130DetailRaw);
+    par130DetailTotal = par130AmountManual || par130DetailItems.reduce((sum, item) => sum + item.amount, 0);
+    const par130Panel = document.getElementById("par130DetailPanel");
+    if (par130Panel) par130Panel.hidden = true;
     const par130CustomerSayRaw = isMyCars
       ? pickField(d, ["Par1-30 Musteri sayi", "PAR1-30 Musteri sayi", "Par1-30 müştəri sayı", "PAR1-30 müştəri sayı", "Par1-30 musteri sayi", "PAR1-30 musteri sayi", "Par1_30CustomerCount", "PAR1_30CustomerCount", "Par 1-30 say", "PAR 1-30 say"])
       : pickField(d, ["Par 1-30 say", "PAR 1-30 say", "Par1-30 say", "PAR1-30 say", "Par1-30 Musteri sayi", "PAR1-30 Musteri sayi", "Par1-30 müştəri sayı", "PAR1-30 müştəri sayı", "Par1-30 musteri sayi", "PAR1-30 musteri sayi", "Par1_30CustomerCount", "PAR1_30CustomerCount"]);
@@ -3254,11 +3366,11 @@ async function loadData() {
       document.getElementById("kpiGrid").innerHTML = `
         <div class="kpi-card highlight ${portDiff>0?'positive':''}"><div class="kpi-label">Portfel</div><div class="kpi-value mono" title="${fmtAZN(portfolio)}">${fmtAZN(portfolio)}</div>${trendBadge(portDiff)}</div>
         <div class="kpi-card"><div class="kpi-label">PAR30+</div><div class="kpi-value mono" style="color:${parColor(par30pct)}">${par30pct}</div>${trendBadge(parDiff,true)}</div>
-        <div class="kpi-card"><div class="kpi-label">PAR1-30</div><div class="kpi-value mono" style="color:${parColor(par130Raw)}">${fmtPctText(par130Raw)}</div></div>
+        <div class="kpi-card par130-clickable" role="button" tabindex="0" aria-label="PAR1-30 detalları" onclick="togglePar130Details()" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();togglePar130Details();}"><div class="kpi-label">PAR1-30</div><div class="kpi-value mono" style="color:${parColor(par130Raw)}">${fmtPctText(par130Raw)}</div><div class="kpi-sub">${fmtAZN(par130DetailTotal)} · detalları göstər</div></div>
         <div class="kpi-card positive"><div class="kpi-label">Aylıq yığım proqnozu</div><div class="kpi-value mono" title="${fmtAZN(yigim)}">${fmtAZN(yigim)}</div></div>
         <div class="kpi-card"><div class="kpi-label">Orta müddət</div><div class="kpi-value">${avgTerm} <span style="font-size:10px;color:var(--faint)">ay</span></div></div>
         <div class="kpi-card ${marjaDiff>0?'positive':''}"><div class="kpi-label">Marja</div><div class="kpi-value">${marja}</div>${trendBadge(marjaDiff)}</div>
-        <div class="kpi-card positive"><div class="kpi-label">Cari ay verilən kredit</div><div class="kpi-value mono" title="${fmtAZN(hisseli)}">${fmtAZN(hisseli)}</div><div class="kpi-sub">${fmtProductCount(monthlyProductCount)}</div></div>
+        <div class="kpi-card positive"><div class="kpi-label">Cari ay verilən kredit</div><div class="kpi-value mono" title="${fmtAZN(hisseli)}">${fmtAZN(hisseli)}</div></div>
         <div class="kpi-card"><div class="kpi-label">Aktiv müştəri sayı</div><div class="kpi-value mono">${fmtNum(activeCount)}</div></div>
       `;
     } else {
@@ -3281,11 +3393,11 @@ async function loadData() {
     renderRiskConsole({
       par130pct: par130Raw,
       par130CustomerCount: par130CustomerSayRaw,
-      par130Amount: expertRiskTotals.overdueAmount130,
-      par130Portfolio: expertRiskTotals.overduePortfolio130,
+      par130Amount: isMyCars ? par130DetailTotal : expertRiskTotals.overdueAmount130,
+      par130Portfolio: isMyCars ? par130DetailTotal : expertRiskTotals.overduePortfolio130,
       par30pct,
       par30CustomerCount: par30CustomerSayRaw,
-      par30Amount: isMyCars ? toNum(d.CureAmount) : expertRiskTotals.overdueAmount30,
+      par30Amount: isMyCars ? toNum(d.Par30Amount) : expertRiskTotals.overdueAmount30,
       par30Portfolio: isMyCars ? toNum(d.Par30Amount) : (expertRiskTotals.overduePortfolio30 || par30)
     });
     if (!isMyCars) renderRiskExperts(riskExpertState);
@@ -3336,8 +3448,8 @@ async function loadData() {
       "2026": { salesMap: mapS26, platMap: mapP26, b2bMap: mapB26, instMap: mapI26, targetMap: mapT26, productMap: mapProduct26 }
     };
     renderMonthlyWorkspace(true);
-    document.getElementById("monthlyTable2025").innerHTML = buildMonthlyTable(mapS25, mapP25, mapB25, mapI25, mapT25, mapProduct25);
-    document.getElementById("monthlyTable2026").innerHTML = buildMonthlyTable(mapS26, mapP26, mapB26, mapI26, mapT26, mapProduct26);
+    document.getElementById("monthlyTable2025").innerHTML = buildMonthlyTable(mapS25, mapP25, mapB25, mapI25, mapT25);
+    document.getElementById("monthlyTable2026").innerHTML = buildMonthlyTable(mapS26, mapP26, mapB26, mapI26, mapT26);
 
     const experts = [1,2,3,4].map(i=>({
       name:   d[`Expert${i}`] || (i === 4 ? "HumAI" : `Mütəxəssis ${i}`),
@@ -3377,14 +3489,15 @@ async function loadData() {
       document.getElementById("summaryText").innerHTML = `
         <div class="signal-grid">
           ${signalCard('Cari ay verilən kredit', fmtAZN(hisseli), '', hisseli > 0 ? 'accent-green' : 'accent-blue')}
-          ${signalCard('Cari ay məhsul sayı', fmtProductCount(monthlyProductCount), '', monthlyProductCount > 0 ? 'accent-green' : 'accent-blue')}
           ${signalCard('Aylıq yığım proqnozu', fmtAZN(yigim), '', yigim > 0 ? 'accent-green' : 'accent-blue')}
           ${signalCard('Aktiv müştəri', fmtNum(activeCount), '', 'accent-blue')}
-          ${signalCard('PAR1-30', fmtPctText(par130Raw), '', `accent-${parStatus(par130Raw) === 'warning' ? 'amber' : parStatus(par130Raw) === 'danger' ? 'red' : 'green'}`)}
+          <div onclick="togglePar130Details()" style="cursor:pointer">${signalCard('PAR1-30', fmtPctText(par130Raw), '', `accent-${parStatus(par130Raw) === 'warning' ? 'amber' : parStatus(par130Raw) === 'danger' ? 'red' : 'green'}`)}</div>
           ${signalCard('1-30 müştəri sayı', par130CustomerSayRaw ? fmtNum(toNum(par130CustomerSayRaw)) : '–', '', 'accent-blue')}
           ${signalCard('PAR30+ müştəri sayı', par30CustomerSayRaw ? fmtNum(toNum(par30CustomerSayRaw)) : '–', '', 'accent-blue')}
           ${signalCard('PAR30+ portfeli', fmtAZN(toNum(d.Par30Amount)), '', `accent-${parStatus(par30pct) === 'warning' ? 'amber' : parStatus(par30pct) === 'danger' ? 'red' : 'green'}`)}
           ${signalCard('Marja', marja, '', 'accent-blue')}
+          ${signalCard('Təkrar müştəri say nisbəti', repeatCustomerCountRate, '', repeatCustomerCountRate !== '–' ? 'accent-blue' : 'accent-amber')}
+          ${signalCard('Təkrar alış məbləği nisbəti', repeatCustomerAmountRate, '', repeatCustomerAmountRate !== '–' ? 'accent-blue' : 'accent-amber')}
         </div>`;
     } else {
       document.getElementById("summaryText").innerHTML = `
