@@ -1368,6 +1368,27 @@
     .expert-icra { color: var(--blue); }
     .expert-hedef { color: var(--faint); }
 
+    .history-toolbar { display:flex; align-items:end; gap:10px; margin-bottom:14px; flex-wrap:wrap; }
+    .history-toolbar label { display:grid; gap:6px; color:var(--muted); font-family:var(--mono); font-size:10px; font-weight:900; text-transform:uppercase; letter-spacing:.8px; }
+    .history-toolbar select {
+      min-width:128px; min-height:38px; padding:8px 34px 8px 11px;
+      border:1px solid var(--line-strong); border-radius:13px;
+      background:var(--panel-3); color:var(--ink); font-weight:900;
+    }
+    .history-meta {
+      margin:0 0 14px; padding:11px 13px; border:1px solid var(--line);
+      border-radius:14px; background:var(--panel-3); color:var(--muted);
+      font-size:12px; font-weight:800;
+    }
+    .history-kpi-grid { margin-bottom:14px; }
+    .history-detail-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:10px; margin-top:14px; }
+    .history-detail-card { padding:14px; border:1px solid var(--line); border-radius:16px; background:var(--panel-3); }
+    .history-detail-label { color:var(--muted); font-family:var(--mono); font-size:10px; font-weight:900; text-transform:uppercase; }
+    .history-detail-value { margin-top:7px; color:var(--ink); font-family:var(--mono); font-size:18px; font-weight:900; }
+    .history-chart-card { margin-top:16px; padding-top:14px; border-top:1px solid var(--line); }
+    .history-chart-box { height:300px; }
+    @media (max-width:640px) { .history-toolbar label, .history-toolbar select { width:100%; } .history-toolbar .btn { width:100%; } }
+
     .archive-controls { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; }
     .archive-controls select {
       min-height: 38px;
@@ -1670,6 +1691,7 @@
       <button class="nav-btn active" data-panel-link="overview" onclick="setPanel('overview')"><span class="nav-code">OV</span><span>İcmal mərkəzi</span></button>
       <button class="nav-btn" data-panel-link="monthly" onclick="setPanel('monthly')"><span class="nav-code">AY</span><span>Aylıq kreditlər</span></button>
       <button class="nav-btn" data-panel-link="risk" onclick="setPanel('risk')"><span class="nav-code">RK</span><span>Risk hesabatı</span></button>
+      <button class="nav-btn" data-panel-link="history" onclick="setPanel('history')"><span class="nav-code">HX</span><span>Tarixçə</span></button>
     </div>
 
     <div class="side-actions">
@@ -1755,6 +1777,7 @@
         <button class="tab-btn active" data-tab="overview" onclick="setPanel('overview')">İcmal</button>
         <button class="tab-btn" data-tab="monthly" onclick="setPanel('monthly')">Aylıq kreditlər</button>
         <button class="tab-btn" data-tab="risk" onclick="setPanel('risk')">Risk hesabatı</button>
+        <button class="tab-btn" data-tab="history" onclick="setPanel('history')">Tarixçə</button>
       </div>
 
       <div class="tab-panel" id="panel-targets">
@@ -1917,6 +1940,37 @@
                 </div>
               </div>
               <div class="texno-risk-grid" id="texnoRiskGrid"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="tab-panel" id="panel-history">
+        <div class="panel">
+          <div class="panel-head">
+            <div>
+              <div class="panel-title">İnteraktiv tarixçə</div>
+              <div class="panel-sub">Keçmiş ay və gün snapshot-larını PDF əvəzinə dashboard formasında aç.</div>
+            </div>
+          </div>
+          <div class="panel-body">
+            <div class="history-toolbar">
+              <label>İl<select id="historyYearFilter" onchange="historyYearChanged()"></select></label>
+              <label>Ay<select id="historyMonthFilter" onchange="historyMonthChanged()"></select></label>
+              <label>Snapshot tarixi<select id="historyDateFilter" onchange="historyDateChanged()"></select></label>
+              <button class="btn" type="button" onclick="ensureHistoryLoaded(true)">Yenilə</button>
+            </div>
+            <div class="history-meta" id="historySnapshotMeta">Tarixçə açıldıqda məlumat yüklənəcək.</div>
+            <div class="kpi-grid history-kpi-grid" id="historyKpiGrid"></div>
+            <div class="history-detail-grid" id="historyRiskGrid"></div>
+            <div class="history-chart-card">
+              <div class="mini-section-head">
+                <div>
+                  <div class="mini-section-title">Ay ərzində portfel trendi</div>
+                  <div class="mini-section-sub">Manual snapshot-lar varsa onlar, yoxdursa Daily_History istifadə olunur.</div>
+                </div>
+              </div>
+              <div class="chart-box history-chart-box"><canvas id="historyPortfolioChart"></canvas></div>
             </div>
           </div>
         </div>
@@ -2151,8 +2205,224 @@ function toggleMyCarsModelBreakdown() {
 }
 
 
+
+let historyDailyRows = [];
+let historyManualRows = [];
+let historyLoaded = false;
+let historyLoading = false;
+let historyState = { year:"", month:"", date:"" };
+
+function parseHistoryDate(value) {
+  const s = String(value || "").trim();
+  let m = s.match(/^(\d{2})\.(\d{2})\.(\d{4})$/);
+  if (m) return new Date(Number(m[3]), Number(m[2])-1, Number(m[1]));
+  m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (m) return new Date(Number(m[1]), Number(m[2])-1, Number(m[3]));
+  return null;
+}
+function historyDateKey(value) {
+  const d = value instanceof Date ? value : parseHistoryDate(value);
+  if (!d || isNaN(d)) return "";
+  return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
+}
+function historyMonthKey(value) {
+  const key = historyDateKey(value);
+  return key ? key.slice(0,7) : "";
+}
+function historyDateLabel(key) {
+  const m = String(key||"").match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  return m ? `${m[3]}.${m[2]}.${m[1]}` : key;
+}
+function historyHasData(row) {
+  return ["Portfolio","Par30Amount","Aktiv müştəri sayı","InstallmentAmount","MonthlyExpectedCollection"]
+    .some(k => Math.abs(toNum(row?.[k])) > 0.000001);
+}
+function historyRowsForMonth(year, month) {
+  const mk = String(year)+"-"+String(month).padStart(2,"0");
+  return historyDailyRows.filter(r => historyMonthKey(r.Tarix) === mk && historyHasData(r));
+}
+function historyManualForMonth(year, month) {
+  const mk = String(year)+"-"+String(month).padStart(2,"0");
+  return historyManualRows.filter(r => historyMonthKey(r.Tarix) === mk && toNum(r.Portfel) > 0);
+}
+function historyAvailableMonths() {
+  const set = new Set();
+  historyDailyRows.forEach(r => { if (historyHasData(r)) { const k=historyMonthKey(r.Tarix); if(k) set.add(k); } });
+  historyManualRows.forEach(r => { if (toNum(r.Portfel)>0) { const k=historyMonthKey(r.Tarix); if(k) set.add(k); } });
+  return [...set].sort();
+}
+function historyPreferredDate(year, month) {
+  const manual = historyManualForMonth(year,month)
+    .map(r=>historyDateKey(r.Tarix)).filter(Boolean).sort();
+  if (manual.length) return manual[manual.length-1];
+  const daily = historyRowsForMonth(year,month)
+    .map(r=>historyDateKey(r.Tarix)).filter(Boolean).sort();
+  return daily[daily.length-1] || "";
+}
+function historyDefaultMonth() {
+  const months = historyAvailableMonths();
+  if (!months.length) return "";
+  const now = new Date();
+  const current = now.getFullYear()+"-"+String(now.getMonth()+1).padStart(2,"0");
+  const completed = months.filter(k=>k<current);
+  return (completed.length ? completed : months).slice(-1)[0];
+}
+function historySnapshot(dateKey) {
+  const manual = historyManualRows.find(r=>historyDateKey(r.Tarix)===dateKey) || null;
+  const exactDaily = historyDailyRows.find(r=>historyDateKey(r.Tarix)===dateKey && historyHasData(r)) || null;
+  let daily = exactDaily;
+  if (!daily) {
+    const mk = dateKey.slice(0,7);
+    const candidates = historyDailyRows
+      .filter(r=>historyMonthKey(r.Tarix)===mk && historyHasData(r) && historyDateKey(r.Tarix)<=dateKey)
+      .sort((a,b)=>historyDateKey(a.Tarix).localeCompare(historyDateKey(b.Tarix)));
+    daily = candidates[candidates.length-1] || null;
+  }
+  if (!manual && !daily) return null;
+  const portfolio = manual ? toNum(manual.Portfel) : toNum(daily?.Portfolio);
+  const par30Pct = manual && String(manual["PAR30 %"]||"").trim()!=="" ? manual["PAR30 %"] : (daily?.Par30 || "0%");
+  const par130Pct = manual && String(manual["PAR1-30 %"]||"").trim()!=="" ? manual["PAR1-30 %"] : (daily?.["Par1-30"] || "0%");
+  const par30Amount = manual ? toNum(manual["PAR30 məbləği"]) : toNum(daily?.Par30Amount);
+  const par130Amount = manual ? toNum(manual["PAR1-30 məbləği"]) : 0;
+  const expected = manual ? toNum(manual["Aylıq yığılmalı məbləğ"]) : toNum(daily?.MonthlyExpectedCollection);
+  const par130Count = manual && String(manual["PAR1-30 say"]||"").trim()!=="" ? toNum(manual["PAR1-30 say"]) : toNum(daily?.["Par 1-30 say"]);
+  const par30Count = manual && String(manual["PAR30 say"]||"").trim()!=="" ? toNum(manual["PAR30 say"]) : toNum(daily?.["Par30+ sayi"]);
+  return {
+    dateKey, manual:!!manual, portfolio, par30Pct, par130Pct, par30Amount, par130Amount, expected,
+    marja: daily?.Marja || "–",
+    installment: toNum(daily?.InstallmentAmount),
+    activeCount: toNum(daily?.["Aktiv müştəri sayı"]),
+    avgTerm: toNum(daily?.WeightedAverageTerm),
+    collectionExecution: daily?.["Yığım icrası"] || "–",
+    repeatCount: daily?.["Təkrar müştəri say nisbəti"] || "–",
+    repeatAmount: daily?.["Təkrar müştəri alış məbləği nisbəti"] || "–",
+    par130Count, par30Count
+  };
+}
+function renderHistoryControls() {
+  const months = historyAvailableMonths();
+  if (!months.length) return;
+  if (!historyState.year || !historyState.month) {
+    const dflt = historyDefaultMonth() || months[months.length-1];
+    [historyState.year,historyState.month] = dflt.split("-");
+    historyState.date = historyPreferredDate(historyState.year,historyState.month);
+  }
+  const years = [...new Set(months.map(k=>k.slice(0,4)))].sort().reverse();
+  const ySel=document.getElementById("historyYearFilter");
+  const mSel=document.getElementById("historyMonthFilter");
+  const dSel=document.getElementById("historyDateFilter");
+  if (!years.includes(historyState.year)) historyState.year=years[0];
+  ySel.innerHTML=years.map(y=>`<option value="${y}" ${y===historyState.year?"selected":""}>${y}</option>`).join("");
+  const availableMonths=months.filter(k=>k.startsWith(historyState.year+"-")).map(k=>k.slice(5,7)).sort();
+  if (!availableMonths.includes(historyState.month)) historyState.month=availableMonths[availableMonths.length-1];
+  mSel.innerHTML=availableMonths.map(m=>`<option value="${m}" ${m===historyState.month?"selected":""}>${MONTHS.full[Number(m)-1]} ${historyState.year}</option>`).join("");
+  const dailyDates=historyRowsForMonth(historyState.year,historyState.month).map(r=>historyDateKey(r.Tarix));
+  const manualDates=historyManualForMonth(historyState.year,historyState.month).map(r=>historyDateKey(r.Tarix));
+  const allDates=[...new Set([...dailyDates,...manualDates])].filter(Boolean).sort().reverse();
+  if (!allDates.includes(historyState.date)) historyState.date=historyPreferredDate(historyState.year,historyState.month) || allDates[0] || "";
+  dSel.innerHTML=allDates.map(k=>`<option value="${k}" ${k===historyState.date?"selected":""}>${historyDateLabel(k)}${manualDates.includes(k)?" · manual":""}</option>`).join("");
+}
+function historyYearChanged() {
+  historyState.year=document.getElementById("historyYearFilter").value;
+  historyState.month="";
+  historyState.date="";
+  renderHistory();
+}
+function historyMonthChanged() {
+  historyState.month=document.getElementById("historyMonthFilter").value;
+  historyState.date=historyPreferredDate(historyState.year,historyState.month);
+  renderHistory();
+}
+function historyDateChanged() {
+  historyState.date=document.getElementById("historyDateFilter").value;
+  renderHistory();
+}
+function renderHistoryChart() {
+  const canvas=document.getElementById("historyPortfolioChart");
+  if (!canvas || typeof Chart==="undefined") return;
+  destroyChart("historyPortfolio");
+  const manual=historyManualForMonth(historyState.year,historyState.month)
+    .filter(r=>toNum(r.Portfel)>0)
+    .sort((a,b)=>historyDateKey(a.Tarix).localeCompare(historyDateKey(b.Tarix)));
+  const daily=historyRowsForMonth(historyState.year,historyState.month)
+    .sort((a,b)=>historyDateKey(a.Tarix).localeCompare(historyDateKey(b.Tarix)));
+  const source=manual.length>=2?manual:daily;
+  const labels=source.map(r=>historyDateLabel(historyDateKey(r.Tarix)).slice(0,5));
+  const values=source.map(r=>toNum(r.Portfel ?? r.Portfolio));
+  const isDark=document.documentElement.getAttribute("data-theme")==="dark";
+  const gridColor=isDark?"rgba(255,255,255,0.07)":"rgba(15,23,42,0.08)";
+  const tickColor=isDark?"#94a3b8":"#64748b";
+  charts.historyPortfolio=new Chart(canvas,{
+    type:"line",
+    data:{labels,datasets:[{label:"Portfel",data:values,borderColor:"#22d3ee",backgroundColor:"rgba(34,211,238,0.10)",fill:true,tension:.35,pointRadius:3,borderWidth:2}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>" "+fmtAZN(ctx.raw)}}},scales:{x:{grid:{color:gridColor},ticks:{color:tickColor}},y:{grid:{color:gridColor},ticks:{color:tickColor,callback:v=>v>=1000000?(v/1000000).toFixed(1)+"M":v>=1000?(v/1000).toFixed(0)+"K":v}}}}
+  });
+}
+function renderHistory() {
+  if (!historyLoaded) return;
+  renderHistoryControls();
+  const meta=document.getElementById("historySnapshotMeta");
+  const grid=document.getElementById("historyKpiGrid");
+  const risk=document.getElementById("historyRiskGrid");
+  const s=historySnapshot(historyState.date);
+  if (!s) {
+    meta.textContent="Bu tarix üçün snapshot tapılmadı.";
+    grid.innerHTML="";
+    risk.innerHTML="";
+    return;
+  }
+  const par30Text=fmtPctText(s.par30Pct);
+  const par130Text=fmtPctText(s.par130Pct);
+  meta.innerHTML=`<strong>${historyDateLabel(s.dateKey)}</strong> snapshot-u · ${s.manual?"manual göstəricilər üstün tutulub":"Daily_History snapshot-u"} · PDF deyil, canlı dashboard görünüşüdür.`;
+  grid.innerHTML=`
+    <div class="kpi-card highlight"><div class="kpi-label">Portfel</div><div class="kpi-value mono">${fmtAZN(s.portfolio)}</div></div>
+    <div class="kpi-card"><div class="kpi-label">PAR30+</div><div class="kpi-value mono" style="color:${parColor(par30Text)}">${par30Text}</div><div class="kpi-sub">${fmtAZN(s.par30Amount)}</div></div>
+    <div class="kpi-card"><div class="kpi-label">PAR1-30</div><div class="kpi-value mono" style="color:${parColor(par130Text)}">${par130Text}</div><div class="kpi-sub">${s.par130Amount?fmtAZN(s.par130Amount):"Məbləğ snapshot-da yoxdur"}</div></div>
+    <div class="kpi-card positive"><div class="kpi-label">Aylıq yığım proqnozu</div><div class="kpi-value mono">${fmtAZN(s.expected)}</div></div>
+    <div class="kpi-card"><div class="kpi-label">Orta müddət</div><div class="kpi-value mono">${s.avgTerm?s.avgTerm.toFixed(2):"–"} <span style="font-size:10px;color:var(--faint)">ay</span></div></div>
+    <div class="kpi-card"><div class="kpi-label">Marja</div><div class="kpi-value mono">${sheetText(s.marja)}</div></div>
+    <div class="kpi-card positive"><div class="kpi-label">Həmin ay verilən kredit</div><div class="kpi-value mono">${fmtAZN(s.installment)}</div></div>
+    <div class="kpi-card"><div class="kpi-label">Aktiv müştəri</div><div class="kpi-value mono">${fmtNum(s.activeCount)}</div></div>`;
+  risk.innerHTML=`
+    <div class="history-detail-card"><div class="history-detail-label">PAR30+ müştəri sayı</div><div class="history-detail-value">${fmtNum(s.par30Count)}</div></div>
+    <div class="history-detail-card"><div class="history-detail-label">PAR1-30 müştəri sayı</div><div class="history-detail-value">${fmtNum(s.par130Count)}</div></div>
+    <div class="history-detail-card"><div class="history-detail-label">Yığım icrası</div><div class="history-detail-value">${sheetText(s.collectionExecution)}</div></div>
+    <div class="history-detail-card"><div class="history-detail-label">Təkrar müştəri sayı</div><div class="history-detail-value">${sheetText(s.repeatCount)}</div></div>
+    <div class="history-detail-card"><div class="history-detail-label">Təkrar alış məbləği</div><div class="history-detail-value">${sheetText(s.repeatAmount)}</div></div>`;
+  renderHistoryChart();
+}
+async function fetchHistorySheet(name, timeoutMs=7000) {
+  const controller=new AbortController();
+  const timer=setTimeout(()=>controller.abort(),timeoutMs);
+  try {
+    const response=await fetch(sheetUrl(SOURCE_CONFIG.mycars.sheetId,name)+`?_=${Date.now()}`,{cache:"no-store",signal:controller.signal});
+    if(!response.ok) throw new Error(name+" HTTP "+response.status);
+    const data=await response.json();
+    return Array.isArray(data)?data:[];
+  } finally { clearTimeout(timer); }
+}
+async function ensureHistoryLoaded(force=false) {
+  if (currentSourceKey!=="mycars") return;
+  if (historyLoading) return;
+  if (historyLoaded && !force) { renderHistory(); return; }
+  historyLoading=true;
+  const meta=document.getElementById("historySnapshotMeta");
+  if(meta) meta.textContent="Tarixçə yüklənir...";
+  try {
+    const [daily,manual]=await Promise.all([fetchHistorySheet("Daily_History"),fetchHistorySheet("Manual_Input")]);
+    historyDailyRows=daily;
+    historyManualRows=manual;
+    historyLoaded=true;
+    if(force){historyState={year:"",month:"",date:""};}
+    renderHistory();
+  } catch(error) {
+    console.warn("Tarixçə yüklənmədi",error);
+    if(meta) meta.textContent="Tarixçə məlumatları yüklənmədi. Yenilə düyməsini basıb təkrar yoxla.";
+  } finally { historyLoading=false; }
+}
+
 const MYSHOPS_PANELS = ["overview", "targets", "monthly", "risk", "teams", "applications", "texno", "archive"];
-const MYCARS_PANELS = ["overview", "monthly", "risk"];
+const MYCARS_PANELS = ["overview", "monthly", "risk", "history"];
 
 function allowedPanels() {
   return currentSourceKey === "mycars" ? MYCARS_PANELS : MYSHOPS_PANELS;
@@ -2289,6 +2559,15 @@ function setPanel(name) {
   document.getElementById("panel-"+name)?.classList.add("active");
   document.querySelectorAll(".tab-btn").forEach(b=>b.classList.toggle("active", b.dataset.tab === name));
   document.querySelectorAll(".nav-btn").forEach(b=>b.classList.toggle("active", b.dataset.panelLink === name));
+  const topKpis = document.getElementById("kpiGrid");
+  if (topKpis) topKpis.hidden = name === "history";
+  if (name === "history") {
+    const p30 = document.getElementById("par30DetailPanel");
+    const p130 = document.getElementById("par130DetailPanel");
+    if (p30) p30.hidden = true;
+    if (p130) p130.hidden = true;
+    ensureHistoryLoaded();
+  }
   if (window.innerWidth < 980) closeSidebar();
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
